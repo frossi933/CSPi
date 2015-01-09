@@ -4,14 +4,11 @@ module Csp where
     import Data.List
     import qualified Data.Set as Set
     import Common
-    import Env
     
-    --data Func = forall a b. (a -> b)
 {-  predOfEvent (Out _ p) = p
     prefOfEvent (In _ _) = False
 
-    printEvent (Out s p) = "_out_ "++s++" "
-    printEvent (In s f) = "_in_ "++s++" "
+
    
     toTable :: Proc -> ([Event],[Event]) -- (IN, OUT)
     toTable (Unit Skip) = ([],[])
@@ -53,42 +50,93 @@ module Csp where
 
     chkNames :: [ProcDef] -> IO Bool
     chkNames [] =  return True
-    chkNames ((ProcDef name p):ds) = case find (\(ProdDef name' p') -> name == name') ds of
-                                            Just (ProcDef n _)-> do putStrLn "Error: multiples definiciones de "++n++"."
-                                                                    return False
-                                            Nothing -> chkNames ds
+    chkNames ((Def name p):ds) = case find (\(Def name' p') -> name == name') ds of
+                                            Just (Def n _) -> do putStrLn ("Error: multiples definiciones de "++n++".")
+                                                                 return False
+                                            Nothing        -> chkNames ds
     
-    sistema :: Env -> Maybe Proc
-    sistema m = case envLookup "Sistema" m of
-                     Just d -> return d
-                     Nothing -> envLookup "SISTEMA" m
-                     
+    sistema :: [ProcDef] -> IO Proc
+    sistema ds = return $ maybe Stop (\(Def n p) -> p) (find (\(Def n _) -> n == "SISTEMA" || n == "Sistema") ds)                     
                     
-    alpha :: Proc -> Env -> Set Event
-    alpha p e = snd $ alpha' ["Sistema","SISTEMA"] p e
+    alpha :: Proc -> Set.Set Event
+    alpha p = snd $ alpha' ["Sistema","SISTEMA"] p
     
-    alpha' :: [String] -> Proc -> Env -> ([String], Set Event)
-    alpha' v Skip e = (v, Set.empty) -- revisar
-    alpha' v Stop e = (v, Set.empty)
-    alpha' v (Ref s) e = if elem s v then (v, Set.empty) else alpha' (s:v) (envLookup s e) e  
-    alpha' v (Prefix ev p) e = Set.insert ev (alpha' v p e)
-    alpha' v (Parallel ps) e = foldl (\a p -> Set.union (alpha' v p e) a) [] ps
-    alpha' v (ExtSel ps) e = foldl (\a p -> Set.union (alpha' v p e) a) [] ps
+    alpha' :: [String] -> Proc -> ([String], Set.Set Event)
+    alpha' v Skip = (v, Set.empty) -- revisar
+    alpha' v Stop = (v, Set.empty)
+    alpha' v (Ref s p) = if elem s v then (v, Set.empty) else alpha' (s:v) p  
+    alpha' v (Prefix ev p) = let (v', a) = alpha' v p in (v', Set.insert ev a)
+    alpha' v (Parallel l r) = let (v', al) = alpha' v l
+                                  (v'', ar) = alpha' v' r
+                              in (v'', Set.union al ar)
+    alpha' v (ExtSel ps) = foldl (\(v',a) p -> let (v'', a') = alpha' v' p in (v'', Set.union a a')) (v, Set.empty) ps
+
     
-    nextStep :: Proc -> Env -> Scheduler -> Maybe Proc
-    nextStep Skip _ _ = Just Skip -- poner un fin exitoso
-    nextStep Stop _ _ = Nothing
-    nextStep (Ref s) e _ = envLookup s e
-    nextStep (Prefix (Out e pr) p) _ _ = do loop (do while pr
-                                                     return ())
-                                            return p
-    nextStep (Prefix (In e f) p) _ _ = do f
-                                          return p
-    nextStep (Parallel ps) _ _ = case take 2 ps of
-                                      [Stop
-                                      [Prefix e p, Prefix e' p'] -> 
+    menu :: Proc -> Set.Set Event
+    menu p = snd $ menu' ["Sistema","SISTEMA"] p
     
     
+    menu' :: [String] -> Proc -> ([String], Set.Set Event)
+    menu' v Skip           = (v, Set.empty) -- revisar
+    menu' v Stop           = (v, Set.empty)
+    menu' v (Prefix e p)   = (v, Set.singleton e)
+    menu' v (Ref s p)      = if elem s v then (v, Set.empty) else menu' (s:v) p
+    menu' v (Parallel l r) = let (v', ml)  = menu' v l
+                                 (v'', mr) = menu' v' r
+                                 inter = Set.intersection ml mr
+                                 a = Set.difference ml (alpha r)
+                                 b = Set.difference mr (alpha l)
+                             in (v'', Set.union inter (Set.union a b))
+    menu' v (ExtSel ps)    = foldl (\(v',a) p -> let (v'', a') = menu' v' p in (v'', Set.union a a')) (v, Set.empty) ps
+    
+
+--    eval' :: [String] -> Proc -> Event -> ([String], Proc)
+    
+    eval :: Proc -> Event -> Proc
+    eval Skip _           = Skip
+    eval Stop _           = Stop
+    eval (Prefix e p) e'  = if e == e' then p else Stop
+    eval (Ref s p) e      = eval p e                                                                            -- revisar problema de recursion
+    eval (Parallel l r) e = case (Set.member e (menu l), Set.member e (menu r)) of
+                                 (True, True)   -> Parallel (eval l e) (eval r e)                               -- sincronizacion
+                                 (True, False)  -> if Set.member e (alpha r) then Stop                          -- deadlock
+                                                                             else Parallel (eval l e) r         -- IEOF
+                                 (False, True)  -> if Set.member e (alpha l) then Stop                          -- deadlock
+                                                                             else Parallel l (eval r e)         -- IEOF
+                                 (False, False) -> Stop                                                         -- error
+    eval (ExtSel ps) e    = maybe Stop (\p -> eval p e) (find (\p -> Set.member e (menu p)) ps)
+    
+    
+    
+    setRefs :: [ProcDef] -> IO [ProcDef]
+    setRefs ds = return $ map (\(Def name p) -> Def name (setRefsProc ds p)) ds
+                            where setRefsProc defs (Ref s _) = case find (\(Def n _) -> n == s) defs of
+                                                                    Nothing        -> Stop -- error de compilacion
+                                                                    Just (Def n p) -> Ref s p                       -- deberia chequear que no haya P = P
+                                  setRefsProc defs (Prefix r p) = Prefix r (setRefsProc defs p)
+                                  setRefsProc defs (Parallel l r) = Parallel (setRefsProc defs l) (setRefsProc defs r)
+                                  setRefsProc defs (ExtSel ps) = ExtSel $ map (\p -> setRefsProc defs p) ps
+                                  setRefsProc _ p = p
+    
+{-    
+
+        let p' = setRefsProc p p'
+            
+
+        setRefs [] bs     = bs
+      setRefs ((Def name p):ds) bs = let setRefsProc (Ref s _) (n, pr) vs = if s == n then Ref s pr
+                                                                                      else case find (\(Def na p') -> na == s) vs of
+                                                                                            Just (Def n pr) -> Ref s pr
+                                                                                            Nothing -> Stop
+                                                                               -- deberia chequear que no haya P = P
+                                       setRefsProc (Prefix r p) pr vs = Prefix r (setRefsProc defs p)
+                                       setRefsProc (Parallel l r) pr vs = Parallel (setRefsProc defs l) (setRefsProc defs r)
+                                       setRefsProc (ExtSel ps) pr vs = ExtSel $ map (\p -> setRefsProc defs p) ps
+                                       setRefsProc pr _ = pr
+                                       p' = setRefsProc p (name, p') bs
+                                   in  (Def name p'):(setRefs ds)
+                                   
+                                   -}                                     
     
 ----------------------------
 --- Print
@@ -98,12 +146,14 @@ module Csp where
     strOfEvent (Out s _) = s
     strOfEvent (In s _) = s
 
+    printEvent (Out s p) = "_out_ "++s++" "
+    printEvent (In s f) = "_in_ "++s++" "
              
     strProc Skip = "skip;"
     strProc Stop = "stop;"
-    strProc (Ref p) = "ref a: "++ p
+    strProc (Ref s p) = "ref a "++ s ++": " ++ strProc p
     strProc (Prefix e p) = strOfEvent e ++ " -> " ++ strProc p
-    strProc (Parallel ps) = foldl (\s p -> s ++ " || " ++ strProc p) "" ps
+    strProc (Parallel l r) = strProc l ++ " || " ++ strProc r
     strProc (ExtSel ps) = foldl (\s p -> s ++ " [] " ++ strProc p) "" ps
 
     printProc :: Proc -> IO ()
@@ -111,7 +161,7 @@ module Csp where
     
     strDefs :: [ProcDef] -> [String]
     strDefs ds = map strdef ds
-        where strdef (ProcDef name p) = name ++ " = " ++ (strProc p)
+        where strdef (Def name p) = name ++ " = " ++ (strProc p)
     
     printDefs :: [ProcDef] -> IO ()
     printDefs ds = mapM_ putStrLn (strDefs ds)

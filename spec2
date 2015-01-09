@@ -1,0 +1,8 @@
+DK_BOTON1 = _press1 -> DK_BOTON1
+DK_BOTON2 = _press2 -> DK_BOTON2
+
+DK_LAMPARA = on -> off -> DK_LAMPARA
+
+LAMP = press1 -> LAMP [] press2 -> LAMP
+
+SISTEMA = DK_BOTON || DK_LAMPARA || LAMP

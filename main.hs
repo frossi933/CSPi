@@ -1,13 +1,17 @@
+{-# OPTIONS -XRecordWildCards #-}
+
 module Main where
     
+  import Common
   import ParserCsp
   import Csp
   import Data.Char
   import Data.List
+  import qualified Data.Set as Set 
   
----------------------
---- Interpreter
----------------------
+-- -------------------
+-- - Interpreter
+-- -------------------
 
   data Command = LoadSpec String
                | LoadImp String
@@ -24,11 +28,23 @@ module Main where
               Cmd "quit" "" (const Quit) "Cierra el programa.",
               Cmd "help" "" (const Help) "Muestra un texto de ayuda con informacion del programa."]
 
+  data State = S { spec :: Maybe Proc,
+                   imp :: Maybe Imp }
+              
   main :: IO ()
-  main = do s <- getLine
-            c <- interCmd s
-            handleCmd c
-            
+  main = let loop st = do putStr ":> "
+                          s <- getLine
+                          c <- interCmd s
+                          st' <- handleCmd st c
+                          maybe (return ()) loop st'
+         in do putStrLn "BIENVENIDO AL INTERPRETE DE CSP"
+               putStrLn "==============================="
+               putStrLn ""
+               putStrLn "ingrese help para mas ayuda"
+               putStrLn ""
+               loop (S Nothing Nothing)
+               
+               
   interCmd :: String -> IO Command
   interCmd [] = return NoOp
   interCmd str =     let  (cmd,t')  =  break isSpace str
@@ -39,15 +55,37 @@ module Main where
                           _             ->  do putStrLn ("Comando desconocido `" ++ cmd ++ "'. Escriba help para recibir ayuda.")
                                                return NoOp
                        
-  handleCmd :: Command -> IO ()
-  handleCmd (LoadSpec file) = let f'= reverse(dropWhile isSpace (reverse file)) 
-                              in do f <- readFile f'
-                                    printDefs $ (cspparser . lexer) f    
-  handleCmd (LoadImp file) = putStrLn "TODO"
-  handleCmd Run = putStrLn "TODO"
-  handleCmd Quit = putStrLn "TODO"
-  handleCmd Help = putStrLn "TODO"
-  handleCmd NoOp = putStrLn "TODO"
+  handleCmd :: State -> Command -> IO (Maybe State)
+  handleCmd st (LoadSpec file) = let f'= reverse(dropWhile isSpace (reverse file)) 
+                                 in do f <- readFile f'
+                                       defs <- (cspparser . lexer) f
+                                       b <- chkNames defs
+                                       if b then (do defs' <- setRefs defs
+                                                     sys <- sistema defs'
+                                                     printProc sys           -- sacar
+                                                     st' <- newSpec sys st
+                                                     return (Just st'))
+                                            else (do putStrLn "Error: nombres repetidos en la definicion de procesos."
+                                                     return (Just st)) -- revusar
+                                       
+                                       
+  handleCmd st (LoadImp file) = putStrLn "TODO" >> return (Just st)
+  handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
+                                    (\sist -> do m <- return $ menu sist
+                                                 e <- return $ Set.elemAt ((Set.size m)- 1) m    -- debe ser random
+                                                 sist' <- return $ eval sist e
+                                                 printProc sist'
+                                                 st' <- newSpec sist' st
+                                                 return (Just st'))
+                                    spec
+  handleCmd st Quit = putStrLn "Adios!" >> return Nothing
+  handleCmd st Help = putStrLn "TODO" >> return (Just st)
+  handleCmd st NoOp = return (Just st)
+      
+  newSpec :: Proc -> State -> IO State
+  newSpec Stop st@(S {..}) = do putStrLn "Error: especificacion erronea del sistema"
+                                return (S Nothing imp)
+  newSpec p st@(S {..}) = return (S (Just p) imp)
       
 --  parseIO :: String -> (String -> ParseResult a) -> String -> IO (Maybe a)
 --  parseIO f p x = case p x of

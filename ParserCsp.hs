@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -w #-}
 module ParserCsp where
 
+import Common
 import Csp
 import Data.Char
 
@@ -138,7 +139,7 @@ happyReduction_3 (HappyAbsSyn6  happy_var_3)
 	_
 	(HappyTerminal (TPName happy_var_1))
 	 =  HappyAbsSyn5
-		 (ProcDef happy_var_1 happy_var_3
+		 (Def happy_var_1 happy_var_3
 	)
 happyReduction_3 _ _ _  = notHappyAtAll 
 
@@ -166,7 +167,7 @@ happyReduction_6 _ _ _  = notHappyAtAll
 happyReduce_7 = happySpecReduce_1  6 happyReduction_7
 happyReduction_7 (HappyAbsSyn10  happy_var_1)
 	 =  HappyAbsSyn6
-		 (Ref happy_var_1
+		 (happy_var_1
 	)
 happyReduction_7 _  = notHappyAtAll 
 
@@ -175,7 +176,7 @@ happyReduction_8 (HappyAbsSyn6  happy_var_3)
 	_
 	(HappyAbsSyn6  happy_var_1)
 	 =  HappyAbsSyn6
-		 (Parallel [happy_var_1,happy_var_3]
+		 (Parallel happy_var_1 happy_var_3
 	)
 happyReduction_8 _ _ _  = notHappyAtAll 
 
@@ -244,25 +245,17 @@ happyNewToken action sts stk (tk:tks) =
 happyError_ 20 tk tks = happyError' tks
 happyError_ _ tk tks = happyError' (tk:tks)
 
-newtype HappyIdentity a = HappyIdentity a
-happyIdentity = HappyIdentity
-happyRunIdentity (HappyIdentity a) = a
-
-instance Monad HappyIdentity where
-    return = HappyIdentity
-    (HappyIdentity p) >>= q = q p
-
-happyThen :: () => HappyIdentity a -> (a -> HappyIdentity b) -> HappyIdentity b
+happyThen :: () => IO a -> (a -> IO b) -> IO b
 happyThen = (>>=)
-happyReturn :: () => a -> HappyIdentity a
+happyReturn :: () => a -> IO a
 happyReturn = (return)
 happyThen1 m k tks = (>>=) m (\a -> k a tks)
-happyReturn1 :: () => a -> b -> HappyIdentity a
+happyReturn1 :: () => a -> b -> IO a
 happyReturn1 = \a tks -> (return) a
-happyError' :: () => [(Token)] -> HappyIdentity a
-happyError' = HappyIdentity . parseError
+happyError' :: () => [(Token)] -> IO a
+happyError' = parseError
 
-cspparser tks = happyRunIdentity happySomeParser where
+cspparser tks = happySomeParser where
   happySomeParser = happyThen (happyParse action_0 tks) (\x -> case x of {HappyAbsSyn4 z -> happyReturn z; _other -> notHappyAtAll })
 
 happySeq = happyDontSeq
@@ -273,7 +266,7 @@ parseError _ = error "Parse error"
 
 data Token =  TSkip
             | TStop
-            | TPName String
+            | TPName Proc
             | TEOName String
             | TEIName String
             | TDef

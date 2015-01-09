@@ -1,12 +1,14 @@
 {
 module ParserCsp where
 
+import Common
 import Csp
 import Data.Char
 
 }
 
 %name cspparser
+%monad { IO }
 %tokentype {Token}
 %error {parseError}
 %token
@@ -28,13 +30,13 @@ import Data.Char
 Defs : Def                                      { [$1] }
      | Def Defs                                 { $1:$2 }
      
-Def : PNAME '=' Proc                            { ProcDef $1 $3 }
+Def : PNAME '=' Proc                            { Def $1 $3 }
 
 Proc    : STOP                                          { Stop }
         | SKIP                                          { Skip }
         | Event '->' Proc                               { Prefix $1 $3 }
-        | RefProc                                       { Ref $1 }
-        | Proc '||' Proc                                { Parallel [$1,$3] }
+        | RefProc                                       { Ref $1 Skip }
+        | Proc '||' Proc                                { Parallel $1 $3 }
         | Proc '[]' Proc                                { ExtSel [$1,$3] }
 
        
