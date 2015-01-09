@@ -167,7 +167,7 @@ happyReduction_6 _ _ _  = notHappyAtAll
 happyReduce_7 = happySpecReduce_1  6 happyReduction_7
 happyReduction_7 (HappyAbsSyn10  happy_var_1)
 	 =  HappyAbsSyn6
-		 (happy_var_1
+		 (Ref happy_var_1
 	)
 happyReduction_7 _  = notHappyAtAll 
 
@@ -266,7 +266,7 @@ parseError _ = error "Parse error"
 
 data Token =  TSkip
             | TStop
-            | TPName Proc
+            | TPName String
             | TEOName String
             | TEIName String
             | TDef
@@ -285,7 +285,7 @@ lexer (c:cs)
         | isSpace c = lexer cs
         | c == '_' = case fstWord cs of
                         ("",cont) -> [] --Failed $ "Error de nombre de evento"
-                        ((n:ns),cont) -> (TEOName ("_"++(n:ns))) : lexer cont
+                        ((n:ns),cont) -> (TEOName (n:ns)) : lexer cont                          -- lo guardo sin el "_", revisar...
         | isAlpha c = lexName (c:cs)
 lexer unknown =  []  --Failed $ "No se puede reconocer "++(show $ take 10 unknown)++ "..."
 

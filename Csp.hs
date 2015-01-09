@@ -2,6 +2,7 @@
 module Csp where
 
     import Data.List
+    import Env
     import qualified Data.Set as Set
     import Common
     
@@ -55,59 +56,69 @@ module Csp where
                                                                  return False
                                             Nothing        -> chkNames ds
     
-    sistema :: [ProcDef] -> IO Proc
-    sistema ds = return $ maybe Stop (\(Def n p) -> p) (find (\(Def n _) -> n == "SISTEMA" || n == "Sistema") ds)                     
-                    
-    alpha :: Proc -> Set.Set Event
-    alpha p = snd $ alpha' ["Sistema","SISTEMA"] p
     
-    alpha' :: [String] -> Proc -> ([String], Set.Set Event)
-    alpha' v Skip = (v, Set.empty) -- revisar
-    alpha' v Stop = (v, Set.empty)
-    alpha' v (Ref s p) = if elem s v then (v, Set.empty) else alpha' (s:v) p  
-    alpha' v (Prefix ev p) = let (v', a) = alpha' v p in (v', Set.insert ev a)
-    alpha' v (Parallel l r) = let (v', al) = alpha' v l
-                                  (v'', ar) = alpha' v' r
-                              in (v'', Set.union al ar)
-    alpha' v (ExtSel ps) = foldl (\(v',a) p -> let (v'', a') = alpha' v' p in (v'', Set.union a a')) (v, Set.empty) ps
+    
+    sistema :: Env -> IO Proc
+    sistema e = return $ maybe (maybe Stop id (envLookup "Sistema" e)) id (envLookup "SISTEMA" e)                     
+                    
+    alpha :: Proc -> Env -> Set.Set Event
+    alpha p e = snd $ alpha' ["Sistema","SISTEMA"] p e
+    
+    alpha' :: [String] -> Proc -> Env -> ([String], Set.Set Event)
+    alpha' v Skip _ = (v, Set.empty) -- revisar
+    alpha' v Stop _ = (v, Set.empty)
+    alpha' v (Ref s) e = if elem s v then (v, Set.empty)
+                                     else case envLookup s e of
+                                            Just p -> alpha' (s:v) p e
+                                            Nothing -> error "Referencia a proceso inexistente"
+    alpha' v (Prefix ev p) e = let (v', a) = alpha' v p e in (v', Set.insert ev a)
+    alpha' v (Parallel l r) e = let (v', al) = alpha' v l e
+                                    (v'', ar) = alpha' v' r e
+                                in (v'', Set.union al ar)
+    alpha' v (ExtSel ps) e = foldl (\(v',a) p -> let (v'', a') = alpha' v' p e in (v'', Set.union a a')) (v, Set.empty) ps
 
     
-    menu :: Proc -> Set.Set Event
-    menu p = snd $ menu' ["Sistema","SISTEMA"] p
+    menu :: Proc -> Env -> Set.Set Event
+    menu p e = snd $ menu' ["Sistema","SISTEMA"] p e
     
     
-    menu' :: [String] -> Proc -> ([String], Set.Set Event)
-    menu' v Skip           = (v, Set.empty) -- revisar
-    menu' v Stop           = (v, Set.empty)
-    menu' v (Prefix e p)   = (v, Set.singleton e)
-    menu' v (Ref s p)      = if elem s v then (v, Set.empty) else menu' (s:v) p
-    menu' v (Parallel l r) = let (v', ml)  = menu' v l
-                                 (v'', mr) = menu' v' r
-                                 inter = Set.intersection ml mr
-                                 a = Set.difference ml (alpha r)
-                                 b = Set.difference mr (alpha l)
-                             in (v'', Set.union inter (Set.union a b))
-    menu' v (ExtSel ps)    = foldl (\(v',a) p -> let (v'', a') = menu' v' p in (v'', Set.union a a')) (v, Set.empty) ps
+    menu' :: [String] -> Proc -> Env -> ([String], Set.Set Event)
+    menu' v Skip _           = (v, Set.empty) -- revisar
+    menu' v Stop _           = (v, Set.empty)
+    menu' v (Prefix e p) _   = (v, Set.singleton e)
+    menu' v (Ref s) e        = if elem s v then (v, Set.empty)
+                                           else case envLookup s e of
+                                                Just p -> menu' (s:v) p e
+                                                Nothing -> error "Referencia a proceso inexistente"
+    menu' v (Parallel l r) e = let (v', ml)  = menu' v l e
+                                   (v'', mr) = menu' v' r e
+                                   inter = Set.intersection ml mr
+                                   a = Set.difference ml (alpha r e)
+                                   b = Set.difference mr (alpha l e)
+                               in (v'', Set.union inter (Set.union a b))
+    menu' v (ExtSel ps) e    = foldl (\(v',a) p -> let (v'', a') = menu' v' p e in (v'', Set.union a a')) (v, Set.empty) ps
     
 
 --    eval' :: [String] -> Proc -> Event -> ([String], Proc)
     
-    eval :: Proc -> Event -> Proc
-    eval Skip _           = Skip
-    eval Stop _           = Stop
-    eval (Prefix e p) e'  = if e == e' then p else Stop
-    eval (Ref s p) e      = eval p e                                                                            -- revisar problema de recursion
-    eval (Parallel l r) e = case (Set.member e (menu l), Set.member e (menu r)) of
-                                 (True, True)   -> Parallel (eval l e) (eval r e)                               -- sincronizacion
-                                 (True, False)  -> if Set.member e (alpha r) then Stop                          -- deadlock
-                                                                             else Parallel (eval l e) r         -- IEOF
-                                 (False, True)  -> if Set.member e (alpha l) then Stop                          -- deadlock
-                                                                             else Parallel l (eval r e)         -- IEOF
-                                 (False, False) -> Stop                                                         -- error
-    eval (ExtSel ps) e    = maybe Stop (\p -> eval p e) (find (\p -> Set.member e (menu p)) ps)
+    eval :: Proc -> Event -> Env -> Proc
+    eval Skip _ _          = Skip
+    eval Stop _ _          = Stop
+    eval (Prefix e p) e' _ = if e == e' then p else Stop
+    eval (Ref s) e en      = case envLookup s en of
+                                  Just p -> eval p e en                                       -- revisar problema de recursion
+                                  Nothing -> error "Referencia a proceso inexistente" 
+    eval (Parallel l r) e en = case (Set.member e (menu l en), Set.member e (menu r en)) of
+                                 (True, True)   -> Parallel (eval l e en) (eval r e en)                               -- sincronizacion
+                                 (True, False)  -> if Set.member e (alpha r en) then Stop                             -- deadlock
+                                                                                else Parallel (eval l e en) r         -- IEOF
+                                 (False, True)  -> if Set.member e (alpha l en) then Stop                             -- deadlock
+                                                                                else Parallel l (eval r e en)         -- IEOF
+                                 (False, False) -> Stop                                                               -- error
+    eval (ExtSel ps) e en   = maybe Stop (\p -> eval p e en) (find (\p -> Set.member e (menu p en)) ps)
     
     
-    
+  {-  
     setRefs :: [ProcDef] -> IO [ProcDef]
     setRefs ds = return $ map (\(Def name p) -> Def name (setRefsProc ds p)) ds
                             where setRefsProc defs (Ref s _) = case find (\(Def n _) -> n == s) defs of
@@ -118,7 +129,7 @@ module Csp where
                                   setRefsProc defs (ExtSel ps) = ExtSel $ map (\p -> setRefsProc defs p) ps
                                   setRefsProc _ p = p
     
-{-    
+    
 
         let p' = setRefsProc p p'
             
@@ -151,7 +162,7 @@ module Csp where
              
     strProc Skip = "skip;"
     strProc Stop = "stop;"
-    strProc (Ref s p) = "ref a "++ s ++": " ++ strProc p
+    strProc (Ref s) = "ref a "++ s
     strProc (Prefix e p) = strOfEvent e ++ " -> " ++ strProc p
     strProc (Parallel l r) = strProc l ++ " || " ++ strProc r
     strProc (ExtSel ps) = foldl (\s p -> s ++ " [] " ++ strProc p) "" ps

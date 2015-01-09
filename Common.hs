@@ -14,11 +14,15 @@ module Common where
         compare (In s _) (Out s' _) = compare s s'
         compare (Out s _) (In s' _) = compare s s'
         compare (Out s _) (Out s' _) = compare s s'
+        
+    instance Show Event where
+        show (In s _) = show s
+        show (Out s _) = show s
                                         
     data ProcDef = Def String Proc
     data Proc = Skip 
               | Stop 
-              | Ref String Proc 
+              | Ref String 
               | Prefix Event Proc 
               | Parallel Proc Proc 
               | ExtSel [Proc]

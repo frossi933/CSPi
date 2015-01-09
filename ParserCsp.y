@@ -35,7 +35,7 @@ Def : PNAME '=' Proc                            { Def $1 $3 }
 Proc    : STOP                                          { Stop }
         | SKIP                                          { Skip }
         | Event '->' Proc                               { Prefix $1 $3 }
-        | RefProc                                       { Ref $1 Skip }
+        | RefProc                                       { Ref $1 }
         | Proc '||' Proc                                { Parallel $1 $3 }
         | Proc '[]' Proc                                { ExtSel [$1,$3] }
 
@@ -74,7 +74,7 @@ lexer (c:cs)
         | isSpace c = lexer cs
         | c == '_' = case fstWord cs of
                         ("",cont) -> [] --Failed $ "Error de nombre de evento"
-                        ((n:ns),cont) -> (TEOName ("_"++(n:ns))) : lexer cont
+                        ((n:ns),cont) -> (TEOName (n:ns)) : lexer cont                          -- lo guardo sin el "_", revisar...
         | isAlpha c = lexName (c:cs)
 lexer unknown =  []  --Failed $ "No se puede reconocer "++(show $ take 10 unknown)++ "..."
 

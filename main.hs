@@ -5,6 +5,7 @@ module Main where
   import Common
   import ParserCsp
   import Csp
+  import Env
   import Data.Char
   import Data.List
   import qualified Data.Set as Set 
@@ -29,6 +30,7 @@ module Main where
               Cmd "help" "" (const Help) "Muestra un texto de ayuda con informacion del programa."]
 
   data State = S { spec :: Maybe Proc,
+                   env :: Env,
                    imp :: Maybe Imp }
               
   main :: IO ()
@@ -42,7 +44,7 @@ module Main where
                putStrLn ""
                putStrLn "ingrese help para mas ayuda"
                putStrLn ""
-               loop (S Nothing Nothing)
+               loop (S Nothing envEmpty Nothing)
                
                
   interCmd :: String -> IO Command
@@ -60,10 +62,10 @@ module Main where
                                  in do f <- readFile f'
                                        defs <- (cspparser . lexer) f
                                        b <- chkNames defs
-                                       if b then (do defs' <- setRefs defs
-                                                     sys <- sistema defs'
+                                       if b then (do env <- return $ envInit defs
+                                                     sys <- sistema env
                                                      printProc sys           -- sacar
-                                                     st' <- newSpec sys st
+                                                     st' <- newSpec sys env st
                                                      return (Just st'))
                                             else (do putStrLn "Error: nombres repetidos en la definicion de procesos."
                                                      return (Just st)) -- revusar
@@ -71,21 +73,22 @@ module Main where
                                        
   handleCmd st (LoadImp file) = putStrLn "TODO" >> return (Just st)
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
-                                    (\sist -> do m <- return $ menu sist
+                                    (\sist -> do m <- return $ menu sist env
+                                                 print m
                                                  e <- return $ Set.elemAt ((Set.size m)- 1) m    -- debe ser random
-                                                 sist' <- return $ eval sist e
+                                                 sist' <- return $ eval sist e env
                                                  printProc sist'
-                                                 st' <- newSpec sist' st
+                                                 st' <- newSpec sist' env st
                                                  return (Just st'))
                                     spec
   handleCmd st Quit = putStrLn "Adios!" >> return Nothing
   handleCmd st Help = putStrLn "TODO" >> return (Just st)
   handleCmd st NoOp = return (Just st)
       
-  newSpec :: Proc -> State -> IO State
-  newSpec Stop st@(S {..}) = do putStrLn "Error: especificacion erronea del sistema"
-                                return (S Nothing imp)
-  newSpec p st@(S {..}) = return (S (Just p) imp)
+  newSpec :: Proc -> Env -> State -> IO State
+  newSpec Stop e st@(S {..}) = do putStrLn "Error: especificacion erronea del sistema"
+                                  return (S Nothing envEmpty imp)
+  newSpec p e st@(S {..}) = return (S (Just p) e imp)
       
 --  parseIO :: String -> (String -> ParseResult a) -> String -> IO (Maybe a)
 --  parseIO f p x = case p x of
