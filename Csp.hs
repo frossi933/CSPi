@@ -70,12 +70,21 @@ module Csp where
     alpha' v (Ref s) e = if elem s v then (v, Set.empty)
                                      else case envLookup s e of
                                             Just p -> alpha' (s:v) p e
-                                            Nothing -> error "Referencia a proceso inexistente"
+                                            Nothing -> error $ "Referencia a proceso "++s++" inexistente"
     alpha' v (Prefix ev p) e = let (v', a) = alpha' v p e in (v', Set.insert ev a)
     alpha' v (Parallel l r) e = let (v', al) = alpha' v l e
                                     (v'', ar) = alpha' v' r e
                                 in (v'', Set.union al ar)
     alpha' v (ExtSel ps) e = foldl (\(v',a) p -> let (v'', a') = alpha' v' p e in (v'', Set.union a a')) (v, Set.empty) ps
+    alpha' v (IntSel l r) e = let (v', al) = alpha' v l e
+                                  (v'', ar) = alpha' v' r e
+                              in (v'', Set.union al ar)
+    alpha' v (Seq l r) e = let (v', al) = alpha' v l e
+                               (v'', ar) = alpha' v' r e
+                           in (v'', Set.union al ar)
+    alpha' v (Inter l r) e = let (v', al) = alpha' v l e
+                                 (v'', ar) = alpha' v' r e
+                             in (v'', Set.union al ar)
 
     
     menu :: Proc -> Env -> Set.Set Event
@@ -89,7 +98,7 @@ module Csp where
     menu' v (Ref s) e        = if elem s v then (v, Set.empty)
                                            else case envLookup s e of
                                                 Just p -> menu' (s:v) p e
-                                                Nothing -> error "Referencia a proceso inexistente"
+                                                Nothing -> error $ "Referencia a proceso "++s++" inexistente"
     menu' v (Parallel l r) e = let (v', ml)  = menu' v l e
                                    (v'', mr) = menu' v' r e
                                    inter = Set.intersection ml mr
@@ -97,6 +106,16 @@ module Csp where
                                    b = Set.difference mr (alpha l e)
                                in (v'', Set.union inter (Set.union a b))
     menu' v (ExtSel ps) e    = foldl (\(v',a) p -> let (v'', a') = menu' v' p e in (v'', Set.union a a')) (v, Set.empty) ps
+    menu' v (IntSel l r) e   = let (v', al) = menu' v l e
+                                   (v'', ar) = menu' v' r e
+                               in (v'', Set.union al ar)                -- revisar
+    menu' v (Seq l r) e      = case l of
+                                    Skip -> menu' v r e
+                                    Stop -> (v, Set.empty)
+                                    p    -> menu' v l e
+    menu' v (Inter l r) e    = let (v', al) = menu' v l e
+                                   (v'', ar) = menu' v' r e
+                               in (v'', Set.union al ar)
     
 
 --    eval' :: [String] -> Proc -> Event -> ([String], Proc)
@@ -107,7 +126,7 @@ module Csp where
     eval (Prefix e p) e' _ = if e == e' then p else Stop
     eval (Ref s) e en      = case envLookup s en of
                                   Just p -> eval p e en                                       -- revisar problema de recursion
-                                  Nothing -> error "Referencia a proceso inexistente" 
+                                  Nothing -> error $ "Referencia a proceso "++s++" inexistente" 
     eval (Parallel l r) e en = case (Set.member e (menu l en), Set.member e (menu r en)) of
                                  (True, True)   -> Parallel (eval l e en) (eval r e en)                               -- sincronizacion
                                  (True, False)  -> if Set.member e (alpha r en) then Stop                             -- deadlock
@@ -116,8 +135,60 @@ module Csp where
                                                                                 else Parallel l (eval r e en)         -- IEOF
                                  (False, False) -> Stop                                                               -- error
     eval (ExtSel ps) e en   = maybe Stop (\p -> eval p e en) (find (\p -> Set.member e (menu p en)) ps)
+    eval (IntSel l r) e en  = eval (ExtSel [l,r]) e en                                                                   -- revisar!!!!!!!!!!!!
+    eval (Seq l r) e en     = case l of
+                                   Skip -> eval r e en
+                                   Stop -> Stop
+                                   p    -> Seq (eval p e en) r
+    eval (Inter l r) e en   = if Set.member e (menu r en) then eval r e en
+                                                          else Inter (eval l e en) r
     
     
+    -- ASUMO QUE LOS PREDICADOS Y ACCIONES SON PARA CADA APARICION DEL EVENTO EN EL PROCESO
+    setPredAct :: [ProcDef] -> [Claus] -> [ProcDef]
+    setPredAct defs [] = defs
+    setPredAct defs ((CPred e p pr):cs) = case find (\(Def name proc) -> name == p) defs of
+                                               Just (Def name proc) -> setPredAct ((Def name (setPredProc e pr proc)):(delete (Def name proc) defs)) cs
+                                               Nothing              -> error $ "Clausulas: referencia a proceso "++p++" inexistente."
+    setPredAct defs ((CAct e p a):cs) = case find (\(Def name proc) -> name == p) defs of
+                                               Just (Def name proc) -> setPredAct ((Def name (setActProc e a proc)):(delete (Def name proc) defs)) cs
+                                               Nothing              -> error $ "Clausulas: referencia a proceso "++p++" inexistente."
+    
+    
+    setPredProc e pr Skip = Skip
+    setPredProc e pr Stop = Stop
+    setPredProc e pr (Prefix (Out e' pr') p) = if e==e' then Prefix (Out e pr) p
+                                                        else Prefix (Out e' pr') (setPredProc e pr p)
+    setPredProc e pr (Prefix (In e' a) p) = if e==e' then error $ "Clausulas: predicado para evento "++e++" de entrada."          -- revisar
+                                                     else Prefix (In e' a) (setPredProc e pr p)
+    setPredProc e pr (Parallel l r) = Parallel (setPredProc e pr l) (setPredProc e pr r)
+    setPredProc e pr (ExtSel ps) = ExtSel $ map (setPredProc e pr) ps
+    setPredProc e pr (IntSel l r) = IntSel (setPredProc e pr l) (setPredProc e pr r)
+    setPredProc e pr (Seq l r) = Seq (setPredProc e pr l) (setPredProc e pr r)
+    setPredProc e pr (Inter l r) = Inter (setPredProc e pr l) (setPredProc e pr r)
+
+    setActProc e a Skip = Skip
+    setActProc e a Stop = Stop
+    setActProc e a (Prefix (In e' a') p) = if e==e' then Prefix (In e a) p
+                                                    else Prefix (In e' a') (setActProc e a p)
+    setActProc e a (Prefix (Out e' pr') p) = if e==e' then error $ "Clausulas: accion para evento "++e++" de salida."          -- revisar
+                                                      else Prefix (Out e' pr') (setActProc e a p)
+    setActProc e a (Parallel l r) = Parallel (setActProc e a l) (setActProc e a r)
+    setActProc e a (ExtSel ps) = ExtSel $ map (setActProc e a) ps
+    setActProc e a (IntSel l r) = IntSel (setActProc e a l) (setActProc e a r)
+    setActProc e a (Seq l r) = Seq (setActProc e a l) (setActProc e a r)
+    setActProc e a (Inter l r) = Inter (setActProc e a l) (setActProc e a r)    
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   {-  
     setRefs :: [ProcDef] -> IO [ProcDef]
     setRefs ds = return $ map (\(Def name p) -> Def name (setRefsProc ds p)) ds
@@ -166,6 +237,9 @@ module Csp where
     strProc (Prefix e p) = strOfEvent e ++ " -> " ++ strProc p
     strProc (Parallel l r) = strProc l ++ " || " ++ strProc r
     strProc (ExtSel ps) = foldl (\s p -> s ++ " [] " ++ strProc p) "" ps
+    strProc (IntSel l r) = strProc l ++ " /| " ++ strProc r
+    strProc (Seq l r) = strProc l ++ " ; " ++ strProc r
+    strProc (Inter l r) = strProc l ++ "|>" ++ strProc r
 
     printProc :: Proc -> IO ()
     printProc p = putStrLn $ strProc p

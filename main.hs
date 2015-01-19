@@ -60,9 +60,10 @@ module Main where
   handleCmd :: State -> Command -> IO (Maybe State)
   handleCmd st (LoadSpec file) = let f'= reverse(dropWhile isSpace (reverse file)) 
                                  in do f <- readFile f'
-                                       defs <- (cspparser . lexer) f
+                                       (defs, claus) <- (cspparser . lexer) f
                                        b <- chkNames defs
-                                       if b then (do env <- return $ envInit defs
+                                       if b then (let defs' = setPredAct defs claus in do 
+                                                     env <- return $ envInit defs'
                                                      sys <- sistema env
                                                      printProc sys           -- sacar
                                                      st' <- newSpec sys env st
@@ -71,11 +72,12 @@ module Main where
                                                      return (Just st)) -- revusar
                                        
                                        
-  handleCmd st (LoadImp file) = putStrLn "TODO" >> return (Just st)
+  handleCmd st (LoadImp file) = return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
                                     (\sist -> do m <- return $ menu sist env
-                                                 print m
+                                                 print m                                        -- sacar
                                                  e <- return $ Set.elemAt ((Set.size m)- 1) m    -- debe ser random
+                                                 print e                                            -- sacar
                                                  sist' <- return $ eval sist e env
                                                  printProc sist'
                                                  st' <- newSpec sist' env st
@@ -89,7 +91,9 @@ module Main where
   newSpec Stop e st@(S {..}) = do putStrLn "Error: especificacion erronea del sistema"
                                   return (S Nothing envEmpty imp)
   newSpec p e st@(S {..}) = return (S (Just p) e imp)
-      
+  
+  newImp :: Imp -> State -> State
+  newImp file st@(S {..}) = S spec env (Just file)
 --  parseIO :: String -> (String -> ParseResult a) -> String -> IO (Maybe a)
 --  parseIO f p x = case p x of
 --                       Failed e  -> do putStrLn (f++": "++e) 

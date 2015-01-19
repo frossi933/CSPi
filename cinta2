@@ -1,0 +1,50 @@
+DKCELL = DKARM1 || DKARM2 || DKBELT1 || DKBELT2 || DKSWITCH || DKPRESS
+
+DKPRESS = start -> PRESS1 |> abort -> DKPRESS
+
+PRESS1 = _free -> press -> _stoppress -> remove -> PRESS1
+
+{- esto es un comentario -}
+DKSWITCH = _start -> _abort -> DKSWITCH
+
+
+DKBELT1 = start -> BELT1 |> abort -> DKBELT1
+
+BELT1 = _item1 -> BELT1
+
+DKARM1 = start -> ARM1 |> abort -> DKARM1
+
+ARM1 = ARM11 || ARM12
+
+ARM11 = take1 -> release1 -> ARM11
+
+ARM12 = topress1 -> tobelt1 -> ARM12
+
+
+DKBELT2 = start -> BELT2 |> abort -> DKBELT2
+
+BELT2 = _item2 -> BELT2
+
+DKARM2 = start -> ARM2 |> abort -> DKARM2
+
+ARM2 = ARM21 || ARM22
+
+ARM21 = take2 -> release2 -> ARM21
+
+ARM22 = topress2 -> tobelt2 -> ARM22
+
+
+SCELL = start -> WORK |> abort -> SCELL
+
+WORK = W1 || W2 || PRESS
+
+W1 = item1 -> _take1 -> _topress1 -> ir1 -> _release1 -> ar1 -> _tobelt1 -> W1
+
+W2 = item2 -> _take2 -> _topress2 -> ir2 -> _release2 -> ar2 -> _tobelt2 -> W2
+
+
+PRESS = free -> (ir1 -> _ar1 -> PRESSING [] ir2 -> _ar2 -> PRESSING)
+
+PRESSING = _press -> stoppress -> _remove -> PRESS
+
+SISTEMA = DKCELL || SCELL

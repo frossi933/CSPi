@@ -1,0 +1,42 @@
+DKCELL = DKARM || DKBELT || DKSWITCH || DKPRESS
+
+DKPRESS = start -> PRESS1 |> abort -> DKPRESS
+
+PRESS1 = _free -> press -> _stoppress -> remove -> PRESS1
+
+
+DKSWITCH = _start -> _abort -> DKSWITCH
+
+DKBELT = start -> BELT1 |> abort -> DKBELT
+
+BELT1 = _item -> BELT1
+
+DKARM = start -> ARM1 |> abort -> DKARM
+
+ARM1 = ARM11 || ARM12
+
+ARM11 = take -> release -> ARM11
+
+ARM12 = topress -> tobelt -> ARM12
+
+
+SCELL = start -> WORK |> abort -> SCELL
+
+WORK = W || PRESS
+
+W = item -> _take -> _topress -> ir -> _release -> _ar -> _tobelt -> W
+
+PRESS = free -> _ir -> ar -> PRESSING
+
+PRESSING = _press -> stoppress -> _remove -> PRESS
+
+SISTEMA = DKCELL || SCELL
+
+
+
+event abort from DKSWITCH occurs when boton_ab
+event item from BELT1 occurs when hay_item
+event press from PRESS1 does prensar
+
+
+

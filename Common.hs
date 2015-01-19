@@ -1,8 +1,13 @@
 module Common where
 
-    type Func = () -- IO ()
-    data Event = Out String Bool | In String Func
+--    import Actions
+    type Pred = String
+    type Act = String
+    data Event = Out String Pred | In String Act
 
+    data Claus = CPred String String Pred         -- CPred evento proceso predicado
+               | CAct String String Act          -- CAcc evento proceso accion
+    
     instance Eq Event where
         (==) (In s _) (In s' _) = s == s'
         (==) (In s _) (Out s' _) = s == s'
@@ -15,6 +20,9 @@ module Common where
         compare (Out s _) (In s' _) = compare s s'
         compare (Out s _) (Out s' _) = compare s s'
         
+    instance Eq ProcDef where
+        (==) (Def s p) (Def s' p') = s == s'
+        
     instance Show Event where
         show (In s _) = show s
         show (Out s _) = show s
@@ -26,4 +34,8 @@ module Common where
               | Prefix Event Proc 
               | Parallel Proc Proc 
               | ExtSel [Proc]
-    data Imp = I
+              | IntSel Proc Proc
+              | Seq Proc Proc
+              | Inter Proc Proc
+              
+    type Imp = String
