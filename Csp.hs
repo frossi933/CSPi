@@ -5,49 +5,8 @@ module Csp where
     import Env
     import qualified Data.Set as Set
     import Common
-    
-{-  predOfEvent (Out _ p) = p
-    prefOfEvent (In _ _) = False
-
-
+    import Exec
    
-    toTable :: Proc -> ([Event],[Event]) -- (IN, OUT)
-    toTable (Unit Skip) = ([],[])
-    toTable (Unit Stop) = ([],[])
-    toTable (Unit PRec) = ([],[])
-    toTable (Unit (P es p)) = case head es of
-                                Out s p -> ([],[Out s p])
-                                In s p -> ([In s p],[])
-    toTable (Parallel ps) = foldl (\(i,o) p -> let (i',o')=toTable p in (i++i',o++o')) ([],[]) ps 
-    toTable (IntSel ps) = foldl (\(i,o) p -> let (i',o')=toTable p in (i++i',o++o')) ([],[]) ps
-
-    -- (INs, OUTs) -> evento
-    admEvents :: ([Event],[Event]) -> String--(Event,[Event])
-    admEvents (is,os) = admEventsAux (is, os) os
-        where admEventsAux (is, []) os' = admEvents (is,os') -- ver de poner un wait o algo
-              admEventsAux (is, o:os) os' = if predOfEvent o && any (\e -> strOfEvent e == strOfEvent o) is then strOfEvent o 
-                                                                                                     else admEventsAux (is, os) os' 
-
-    updateTree :: String -> Proc -> (Proc, [Func])
-    updateTree s (Unit Skip) = (Unit Skip,[])
-    updateTree s (Unit Stop) = (Unit Stop,[])
-    updateTree s (Unit PRec) = (Unit PRec,[])
-    updateTree s (Unit (P es p)) = if (strOfEvent . head) es == s then case es of
-                                                                        [] -> undefined -- no deberia pasar nunca
-                                                                        [Out e b] -> if b then (Unit p,[]) else (Unit (P es p),[]) -- al menos q p sea un PRec
-                                                                        [In e f] -> (Unit p, [f]) -- deberia ejecutar f y ver q p no sea PRec
-                                                                        (Out e b):(e':es') -> if b then (Unit (P (e':es') p),[]) 
-                                                                                                    else (Unit (P es p),[])
-                                                                        (In e f):(e':es') -> (Unit (P (e':es') p), [f]) -- deberia ejecutar f y ver q p no sea PRec
-                                                                else (Unit (P es p),[])
-    updateTree s (Parallel ps) = let (newT, fs) = (map (updateTree s) ps) in (Parallel newT, concat fs)
-    updateTree s (IntSel ps) = let (newT, fs) = (map (updateTree s) ps) in (IntSel newT, concat fs)
-                                                                
-    step :: Proc -> Proc
-    step t = let e = (admEvents . toTable) t
-                 (newT, fs) = updateTree e t
-             in newT
-             -}
 
     chkNames :: [ProcDef] -> IO Bool
     chkNames [] =  return True
@@ -56,8 +15,7 @@ module Csp where
                                                                  return False
                                             Nothing        -> chkNames ds
     
-    
-    
+      
     sistema :: Env -> IO Proc
     sistema e = return $ maybe (maybe Stop id (envLookup "Sistema" e)) id (envLookup "SISTEMA" e)                     
                     
@@ -88,60 +46,174 @@ module Csp where
 
     
     menu :: Proc -> Env -> Set.Set Event
-    menu p e = snd $ menu' ["Sistema","SISTEMA"] p e
+    menu p e = let (_, (ev, c)) = menu' ["Sistema","SISTEMA"] p e
+                   com = Set.filter (\ch -> case ch of
+                                                    Com _ _ -> True
+                                                    _       -> False) c
+               in Set.union ev $ Set.map C com
     
+    menuCom :: Proc -> Env -> Set.Set Channel
+    menuCom p e = snd $ snd $ menu' ["Sistema", "SISTEMA"] p e
     
-    menu' :: [String] -> Proc -> Env -> ([String], Set.Set Event)
-    menu' v Skip _           = (v, Set.empty) -- revisar
-    menu' v Stop _           = (v, Set.empty)
-    menu' v (Prefix e p) _   = (v, Set.singleton e)
-    menu' v (Ref s) e        = if elem s v then (v, Set.empty)
-                                           else case envLookup s e of
-                                                Just p -> menu' (s:v) p e
-                                                Nothing -> error $ "Referencia a proceso "++s++" inexistente"
-    menu' v (Parallel l r) e = let (v', ml)  = menu' v l e
-                                   (v'', mr) = menu' v' r e
-                                   inter = Set.intersection ml mr
-                                   a = Set.difference ml (alpha r e)
-                                   b = Set.difference mr (alpha l e)
-                               in (v'', Set.union inter (Set.union a b))
-    menu' v (ExtSel ps) e    = foldl (\(v',a) p -> let (v'', a') = menu' v' p e in (v'', Set.union a a')) (v, Set.empty) ps
-    menu' v (IntSel l r) e   = let (v', al) = menu' v l e
-                                   (v'', ar) = menu' v' r e
-                               in (v'', Set.union al ar)                -- revisar
-    menu' v (Seq l r) e      = case l of
-                                    Skip -> menu' v r e
-                                    Stop -> (v, Set.empty)
-                                    p    -> menu' v l e
-    menu' v (Inter l r) e    = let (v', al) = menu' v l e
-                                   (v'', ar) = menu' v' r e
-                               in (v'', Set.union al ar)
+    -- devolvemos:
+    --              (lista de strings con las referencias ya visitadas, (conjunto de eventos in y out del menu, conjuto de canales del menu))
+    menu' :: [String] -> Proc -> Env -> ([String], (Set.Set Event, Set.Set Channel))
+    menu' v Skip _                      = (v, (Set.empty, Set.empty)) -- revisar
+    menu' v Stop _                      = (v, (Set.empty, Set.empty))
+    menu' v (Prefix e@(In _ _) p) _     = (v, (Set.singleton e, Set.empty))
+    menu' v (Prefix e@(Out _ _) p) _    = (v, (Set.singleton e, Set.empty))
+    menu' v (Prefix e@(C c) p) _        = (v, (Set.empty, Set.singleton c))  
+    menu' v (Ref s) e                   = if elem s v then (v, (Set.empty, Set.empty))                      -- ya lo visitamos
+                                                      else case envLookup s e of
+                                                            Just p  -> menu' (s:v) p e
+                                                            Nothing -> error $ "Referencia a proceso "++s++" inexistente"
+    menu' v (Parallel l r) e            = let (v', (mle, mlc))  = menu' v l e
+                                              (v'', (mre, mrc)) = menu' v' r e
+                                              inter = Set.intersection mle mre
+                                              a = Set.difference mle (alpha r e)
+                                              b = Set.difference mre (alpha l e)
+                                              chan = chanMerge mlc mrc
+                                          in (v'', (Set.unions [inter, a, b], chan))
+    menu' v (ExtSel ps) e               = foldl (\(v',(ae, ac)) p -> let (v'', (ae', ac')) = menu' v' p e in (v'', (Set.union ae ae', Set.union ac ac'))) (v, (Set.empty, Set.empty)) ps
+    menu' v (IntSel l r) e              = let (v', (ale, alc)) = menu' v l e
+                                              (v'', (are, arc)) = menu' v' r e
+                                          in (v'', (Set.union ale are, Set.union alc arc))                -- revisar
+    menu' v (Seq l r) e                 = case l of
+                                                Skip -> menu' v r e
+                                                Stop -> (v, (Set.empty, Set.empty))
+                                                p    -> menu' v l e
+    menu' v (Inter l r) e               = menu' v l e                              -- revisar
+                               --let (v', al) = menu' v l e
+                                 --  (v'', ar) = menu' v' r e
+                               --in (v'', Set.union al ar)
     
+    chanMerge :: Set.Set Channel -> Set.Set Channel -> Set.Set Channel
+    chanMerge x y = let xy = Set.union x y
+                        (out, rest) = Set.partition (\c -> case c of
+                                                                ComOut _ _ -> True
+                                                                _          -> False) xy
+                        chanMerge' o r = if Set.null o then r
+                                                       else case Set.elemAt 0 o of
+                                                                 ComOut n m -> if Set.member (ComIn n "") r then Set.insert (Com n m) $ chanMerge' (Set.deleteAt 0 o) (Set.delete (ComIn n "") r)
+                                                                                                            else Set.insert (ComOut n m) $ chanMerge' (Set.deleteAt 0 o) r
+                                                                 _          -> error "No deberia ocurrir, error en la combinacion de los canales"
+                    in chanMerge' out rest
+                                                                                                
+                                                                                        
+    getTrueEvents :: Set.Set Event -> Imp -> IO (Set.Set Event)
+    getTrueEvents s i = do --print s
+                           if Set.null s then return Set.empty
+                                         else case Set.elemAt 0 s of
+                                            Out n p -> do b <- execPred p i
+                                                          if b then do s' <- getTrueEvents (Set.deleteAt 0 s) i
+                                                                       return (Set.insert (Out n p) s')
+                                                               else getTrueEvents (Set.deleteAt 0 s) i
+                                            e       -> do s' <- getTrueEvents (Set.deleteAt 0 s) i
+                                                          return (Set.insert e s')
+                                            
 
---    eval' :: [String] -> Proc -> Event -> ([String], Proc)
+    sustProc :: Value -> Id -> Env -> Proc -> Proc
+    sustProc v x e p = fst $ sust' [] v x e p
+
+    -- VER!!
+--    noRep :: (Proc -> a) -> 
+--    noRep = noRep' [] 
     
-    eval :: Proc -> Event -> Env -> Proc
-    eval Skip _ _          = Skip
-    eval Stop _ _          = Stop
-    eval (Prefix e p) e' _ = if e == e' then p else Stop
-    eval (Ref s) e en      = case envLookup s en of
-                                  Just p -> eval p e en                                       -- revisar problema de recursion
-                                  Nothing -> error $ "Referencia a proceso "++s++" inexistente" 
-    eval (Parallel l r) e en = case (Set.member e (menu l en), Set.member e (menu r en)) of
-                                 (True, True)   -> Parallel (eval l e en) (eval r e en)                               -- sincronizacion
-                                 (True, False)  -> if Set.member e (alpha r en) then Stop                             -- deadlock
-                                                                                else Parallel (eval l e en) r         -- IEOF
-                                 (False, True)  -> if Set.member e (alpha l en) then Stop                             -- deadlock
-                                                                                else Parallel l (eval r e en)         -- IEOF
-                                 (False, False) -> Stop                                                               -- error
-    eval (ExtSel ps) e en   = maybe Stop (\p -> eval p e en) (find (\p -> Set.member e (menu p en)) ps)
-    eval (IntSel l r) e en  = eval (ExtSel [l,r]) e en                                                                   -- revisar!!!!!!!!!!!!
-    eval (Seq l r) e en     = case l of
-                                   Skip -> eval r e en
-                                   Stop -> Stop
-                                   p    -> Seq (eval p e en) r
-    eval (Inter l r) e en   = if Set.member e (menu r en) then eval r e en
-                                                          else Inter (eval l e en) r
+    sust' vis v x e Skip = (Skip, vis)
+    sust' vis v x e Stop = (Stop, vis)
+    sust' vis v x e (Prefix (C (ComOut n m)) p) = (Prefix (C (ComOut n ("let "++x++"="++v++" in "++m))) p, vis)
+    sust' vis v x e (Prefix ev p) = (Prefix ev p, vis)
+    sust' vis v x e (Ref s) = if elem s vis then (Ref s, vis)
+                                            else case envLookup s e of
+                                                      Just p -> sust' (s:vis) v x e p
+                                                      Nothing -> error $ "Referencia a proceso "++s++" inexistente."
+    sust' vis v x e (Parallel l r) = let (l', vis') = sust' vis v x e l
+                                         (r', vis'') = sust' vis' v x e r
+                                     in (Parallel l' r', vis'')
+    sust' vis v x e (ExtSel ps) = let (ps', vvis) = foldl (\(p, vis') p' -> let (p'', vis'') = sust' vis' v x e p' in (p'':p, vis'')) ([], vis) ps
+                                  in (ExtSel ps', vvis)
+    sust' vis v x e (IntSel l r) = let (l', vis') = sust' vis v x e l
+                                       (r', vis'') = sust' vis' v x e r
+                                   in (IntSel l' r', vis'')
+    sust' vis v x e (Seq l r)  = let (l', vis') = sust' vis v x e l
+                                     (r', vis'') = sust' vis' v x e r
+                                 in (Seq l' r', vis'')
+    sust' vis v x e (Inter l r)  = let (l', vis') = sust' vis v x e l
+                                       (r', vis'') = sust' vis' v x e r
+                                   in (Inter l' r', vis'')
+
+    eval :: Proc -> Event -> Env -> Imp -> IO Proc
+    eval p e env i = case e of
+                          C c -> evalChan p c env i
+                          _   -> evalEvent p e env i
+    
+    evalEvent :: Proc -> Event -> Env -> Imp -> IO Proc
+    evalEvent Skip _ _ _                        = return Skip
+    evalEvent Stop _ _ _                        = return Stop
+    evalEvent (Prefix e@(Out n pr) p) e' _ i    = if e==e' then return p 
+                                                           else return Stop
+    evalEvent (Prefix e@(In n a) p) e' _ i      = if e==e' then (execAct a i) >> return p
+                                                           else return Stop
+    evalEvent (Ref s) e en i                    = case envLookup s en of
+                                                    Just p -> evalEvent p e en i                                       -- revisar problema de recursion
+                                                    Nothing -> error $ "Referencia a proceso "++s++" inexistente" 
+    evalEvent (Parallel l r) e en i             = case (Set.member e (menu l en), Set.member e (menu r en)) of
+                                                    (True, True)   -> do l' <- evalEvent l e en i
+                                                                         r' <- evalEvent r e en i
+                                                                         return $ Parallel l' r'                                               -- sincronizacion
+                                                    (True, False)  -> if Set.member e (alpha r en) then return Stop                            -- deadlock
+                                                                                                   else do l' <- evalEvent l e en i
+                                                                                                           return $ Parallel l' r              -- IEOF
+                                                    (False, True)  -> if Set.member e (alpha l en) then return Stop                            -- deadlock
+                                                                                                   else do r' <- evalEvent r e en i
+                                                                                                           return $ Parallel l r'              -- IEOF
+                                                    (False, False) -> return Stop                                                              -- error
+    evalEvent (ExtSel ps) e en i                = maybe (return Stop) (\p -> evalEvent p e en i) (find (\p -> Set.member e (menu p en)) ps)
+    evalEvent (IntSel l r) e en i               = evalEvent (ExtSel [l,r]) e en i                                                                  -- revisar!!!!!!!!!!!!
+    evalEvent (Seq l r) e en i                  = case l of
+                                                    Skip -> evalEvent r e en i
+                                                    Stop -> return Stop
+                                                    p    -> do l' <- evalEvent p e en i
+                                                               return $ Seq l' r
+    evalEvent (Inter l r) e en i                = if Set.member e (menu r en) then evalEvent r e en i
+                                                                              else do l' <- evalEvent l e en i
+                                                                                      return $ Inter l' r
+                                                                                 
+    evalChan :: Proc -> Channel -> Env -> Imp -> IO Proc
+    evalChan Skip _ _ _                        = return Skip
+    evalChan Stop _ _ _                        = return Stop
+    evalChan (Prefix (C (ComOut n _)) p) c _ _ = if nameOfCom c == n then return p                          -- deberia chequear que no se llamen igual canales y eventos
+                                                                     else return Stop
+    evalChan (Prefix (C (ComIn n var)) p) (Com c exp) env i = if c == n then do --val <- execExp exp i
+                                                                                return $ sustProc exp var env p
+                                                                        else return Stop
+    evalChan (Prefix e p) _ _ _                  = return Stop
+    evalChan (Ref s) c env i                    = case envLookup s env of
+                                                    Just p -> evalChan p c env i                                       -- revisar problema de recursion
+                                                    Nothing -> error $ "Referencia a proceso "++s++" inexistente" 
+    evalChan (Parallel l r) c@(Com n e) env i | Set.member c ml                                          = do l' <- evalChan l c env i
+                                                                                                              return $ Parallel l' r
+                                              | Set.member c mr                                          = do r' <- evalChan r c env i
+                                                                                                              return $ Parallel l r'
+                                              | (Set.member (ComIn n "") ml && Set.member (ComOut n e) mr) ||
+                                                (Set.member (ComIn n "") mr && Set.member (ComOut n e) ml) = do l' <- evalChan l c env i
+                                                                                                                r' <- evalChan r c env i
+                                                                                                                return $ Parallel l' r'
+                                              | otherwise                                                  = return Stop
+                                                    where ml = menuCom l env
+                                                          mr = menuCom r env
+    evalChan (ExtSel ps) c@(Com n e) env i      = maybe (return Stop) (\p -> evalChan p c env i) (find (\p -> let m = menuCom p env 
+                                                                                                              in Set.member c m || Set.member (ComIn n "") m || Set.member (ComOut n e) m) ps)
+    evalChan (IntSel l r) c env i               = evalChan (ExtSel [l,r]) c env i                                                                  -- revisar!!!!!!!!!!!!
+    evalChan (Seq l r) c env i                   = case l of
+                                                Skip -> evalChan r c env i
+                                                Stop -> return Stop
+                                                p    -> do l' <- evalChan p c env i
+                                                           return $ Seq l' r
+    evalChan (Inter l r) c env i                = if Set.member c (menuCom r env) then evalChan r c env i
+                                                                                  else do l' <- evalChan l c env i
+                                                                                          return $ Inter l' r
+ 
     
     
     -- ASUMO QUE LOS PREDICADOS Y ACCIONES SON PARA CADA APARICION DEL EVENTO EN EL PROCESO
@@ -180,61 +252,23 @@ module Csp where
     setActProc e a (Inter l r) = Inter (setActProc e a l) (setActProc e a r)    
   
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  {-  
-    setRefs :: [ProcDef] -> IO [ProcDef]
-    setRefs ds = return $ map (\(Def name p) -> Def name (setRefsProc ds p)) ds
-                            where setRefsProc defs (Ref s _) = case find (\(Def n _) -> n == s) defs of
-                                                                    Nothing        -> Stop -- error de compilacion
-                                                                    Just (Def n p) -> Ref s p                       -- deberia chequear que no haya P = P
-                                  setRefsProc defs (Prefix r p) = Prefix r (setRefsProc defs p)
-                                  setRefsProc defs (Parallel l r) = Parallel (setRefsProc defs l) (setRefsProc defs r)
-                                  setRefsProc defs (ExtSel ps) = ExtSel $ map (\p -> setRefsProc defs p) ps
-                                  setRefsProc _ p = p
-    
-    
-
-        let p' = setRefsProc p p'
-            
-
-        setRefs [] bs     = bs
-      setRefs ((Def name p):ds) bs = let setRefsProc (Ref s _) (n, pr) vs = if s == n then Ref s pr
-                                                                                      else case find (\(Def na p') -> na == s) vs of
-                                                                                            Just (Def n pr) -> Ref s pr
-                                                                                            Nothing -> Stop
-                                                                               -- deberia chequear que no haya P = P
-                                       setRefsProc (Prefix r p) pr vs = Prefix r (setRefsProc defs p)
-                                       setRefsProc (Parallel l r) pr vs = Parallel (setRefsProc defs l) (setRefsProc defs r)
-                                       setRefsProc (ExtSel ps) pr vs = ExtSel $ map (\p -> setRefsProc defs p) ps
-                                       setRefsProc pr _ = pr
-                                       p' = setRefsProc p (name, p') bs
-                                   in  (Def name p'):(setRefs ds)
-                                   
-                                   -}                                     
+                          
     
 ----------------------------
 --- Print
 ----------------------------
     
-    
-    strOfEvent (Out s _) = s
-    strOfEvent (In s _) = s
 
     printEvent (Out s p) = "_out_ "++s++" "
     printEvent (In s f) = "_in_ "++s++" "
-             
+    printEvent (C (ComOut n m)) = "_chan_ "++n++"!"++m++" "
+    printEvent (C (ComIn n m)) = "_chan_ "++n++"?"++m++" "
+    printEvent (C (Com n m)) = "_chan_ "++n++"."++m++" "
+    
     strProc Skip = "skip;"
     strProc Stop = "stop;"
-    strProc (Ref s) = "ref a "++ s
-    strProc (Prefix e p) = strOfEvent e ++ " -> " ++ strProc p
+    strProc (Ref s) = s
+    strProc (Prefix e p) = printEvent e ++ " -> " ++ strProc p
     strProc (Parallel l r) = strProc l ++ " || " ++ strProc r
     strProc (ExtSel ps) = foldl (\s p -> s ++ " [] " ++ strProc p) "" ps
     strProc (IntSel l r) = strProc l ++ " /| " ++ strProc r

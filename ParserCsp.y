@@ -17,6 +17,8 @@ import Data.Char
     PNAME       {TPName $$}
     EONAME      {TEOName $$}
     EINAME      {TEIName $$}
+    CEXP        {TCExp $$}
+    CVAR        {TCVar $$}
     PRED        {TPred $$}
     ACT         {TAct $$}
     EVENT       {TEvent}
@@ -25,6 +27,8 @@ import Data.Char
     WHEN        {TWhen}
     DOES        {TDoes}
     '='         {TDef}
+    '?'         {TCIn}
+    '!'         {TCOut}
     '('         {TOpen}
     ')'         {TClose}
     '->'        {TPrefix}
@@ -39,7 +43,8 @@ import Data.Char
 %right '->'
 %%
 
-Stmt : Defs Claus                               { ($1, $2) }
+Stmt : Defs                                     { ($1, []) }
+     | Defs Claus                               { ($1, $2) }
      
 Claus : Clau                                    { [$1] }
       | Clau Claus                              { $1:$2 }
@@ -66,7 +71,9 @@ Proc    : STOP                                  { Stop }
        
 Event   : EventIn                               { In $1 "" }
         | EventOut                              { Out $1 "" }
-
+        | EventIn '?' CVAR                      { C (ComIn $1 $3) }
+        | EventIn '!' CEXP                      { C (ComOut $1 $3) }
+        
 EventIn : EINAME                                { $1 }
 
 EventOut: EONAME                                { $1 }
@@ -84,6 +91,8 @@ data Token =  TSkip
             | TPName String
             | TEOName String
             | TEIName String
+            | TCExp String
+            | TCVar String
             | TPred String
             | TAct String
             | TEvent
@@ -92,6 +101,8 @@ data Token =  TSkip
             | TWhen
             | TDoes
             | TDef
+            | TCIn
+            | TCOut
             | TPrefix
             | TPar
             | TExtSel
@@ -131,9 +142,14 @@ lexWord (c:cs)  | isUpper c = case fstWord (c:cs) of
                                 ("occurs", cont) -> TOccurs : lexer cont
                                 ("when", cont)   -> let (p, contt) = fstWord (dropWhile isSpace cont) in (TWhen : ((TPred p) : lexer contt))
                                 ("does", cont)   -> let (a, contt) = fstWord (dropWhile isSpace cont) in (TDoes : ((TAct a) : lexer contt))
+                                (e, ('?' : cont))  -> let (v, contt) = fstWord cont in (TEIName e):(TCIn :((TCVar v) : lexer contt))
+                                (e, ('!' : cont))  -> let (exp, contt) = paren cont in ((TEIName e):(TCOut :((TCExp exp) : (lexer (tail contt)))))
                                 (e, cont)        -> (TEIName e) : lexer cont
                 
 fstWord = span (\c -> isAlpha c || c == '_' || isDigit c)
+
+paren ('(':rest) = span (\c -> c /= ')') rest           --(takeWhile (\c -> c /= ')') rest) ++ (tail $ dropWhile (\c -> c /= ')') rest)
+paren x = span (\c -> c/= ' ') x
 
 lexCom ('-':('}':cs)) = lexer cs
 lexCom (c:cs) = lexCom cs

@@ -8,7 +8,9 @@ module Main where
   import Env
   import Data.Char
   import Data.List
-  import qualified Data.Set as Set 
+  import qualified Data.Set as Set
+  import Control.Monad.Random                         -- cabal install monadrandom
+
   
 -- -------------------
 -- - Interpreter
@@ -74,19 +76,26 @@ module Main where
                                        
   handleCmd st (LoadImp file) = return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
-                                    (\sist -> do m <- return $ menu sist env
-                                                 print m                                        -- sacar
-                                                 e <- return $ Set.elemAt ((Set.size m)- 1) m    -- debe ser random
-                                                 print e                                            -- sacar
-                                                 sist' <- return $ eval sist e env
-                                                 printProc sist'
-                                                 st' <- newSpec sist' env st
-                                                 return (Just st'))
+                                    (\sist -> maybe (putStrLn "Error: todavia no ha sido cargada la implementacion" >> return (Just st))
+                                                    (\impl -> let men = menu sist env in do
+                                                        --print men
+                                                        m <- getTrueEvents men impl
+                                                        --print m                                            -- sacar
+                                                        if Set.null m then handleCmd  st Quit
+                                                                      else do e <- evalRandIO (do nr <- getRandomR (0, (Set.size m)-1)
+                                                                                                  return $ Set.elemAt nr m)           -- random
+                                                                              print e                                            -- sacar
+                                                                              sist' <- eval sist e env impl
+                                                                              printProc sist'
+                                                                              st' <- newSpec sist' env st
+                                                                              handleCmd st' Run) --return (Just st'))
+                                                    imp)
                                     spec
   handleCmd st Quit = putStrLn "Adios!" >> return Nothing
   handleCmd st Help = putStrLn "TODO" >> return (Just st)
   handleCmd st NoOp = return (Just st)
-      
+  
+     
   newSpec :: Proc -> Env -> State -> IO State
   newSpec Stop e st@(S {..}) = do putStrLn "Error: especificacion erronea del sistema"
                                   return (S Nothing envEmpty imp)

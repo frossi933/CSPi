@@ -35,8 +35,12 @@ SISTEMA = DKCELL || SCELL
 
 
 event abort from DKSWITCH occurs when boton_ab
+
 event item from BELT1 occurs when hay_item
+
 event press from PRESS1 does prensar
+
+event item from W does item
 
 
 
