@@ -11,6 +11,11 @@ module Env where
     envLookup :: String -> Env -> Maybe Proc
     envLookup = Map.lookup
     
+    envGetRef :: String -> Exp -> Env -> Maybe Proc
+    envGetRef name exp env = case Map.lookup name env of
+                                  Just p -> Just p  -- SEGUIRRRR    sustProc 
+                                  Nothing -> Nothing
+    
     envEmpty :: Env
     envEmpty = Map.empty
     

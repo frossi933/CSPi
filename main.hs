@@ -60,24 +60,25 @@ module Main where
                                                return NoOp
                        
   handleCmd :: State -> Command -> IO (Maybe State)
-  handleCmd st (LoadSpec file) = let f'= reverse(dropWhile isSpace (reverse file)) 
-                                 in do f <- readFile f'
-                                       (defs, claus) <- (cspparser . lexer) f
-                                       b <- chkNames defs
-                                       if b then (let defs' = setPredAct defs claus in do 
-                                                     env <- return $ envInit defs'
-                                                     sys <- sistema env
-                                                     printProc sys           -- sacar
-                                                     st' <- newSpec sys env st
-                                                     return (Just st'))
-                                            else (do putStrLn "Error: nombres repetidos en la definicion de procesos."
-                                                     return (Just st)) -- revusar
+  handleCmd st (LoadSpec file) = do let f'= reverse(dropWhile isSpace (reverse file)) 
+                                    f <- readFile f'
+                                    (defs, claus) <- (cspparser . lexer) f
+                                    b <- chkNames defs
+                                    if b then (do let defs' = setPredAct defs claus
+                                                  env <- return $ envInit defs'
+                                                  sys <- sistema env
+                                                  printProc sys           -- sacar
+                                                  st' <- newSpec sys env st
+                                                  return (Just st'))
+                                         else (do putStrLn "Error: nombres repetidos en la definicion de procesos."
+                                                  return (Just st)) -- revusar
                                        
                                        
   handleCmd st (LoadImp file) = return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
                                     (\sist -> maybe (putStrLn "Error: todavia no ha sido cargada la implementacion" >> return (Just st))
-                                                    (\impl -> let men = menu sist env in do
+                                                    (\impl -> do 
+                                                        let men = menu sist env
                                                         --print men
                                                         m <- getTrueEvents men impl
                                                         --print m                                            -- sacar
@@ -86,7 +87,7 @@ module Main where
                                                                                                   return $ Set.elemAt nr m)           -- random
                                                                               print e                                            -- sacar
                                                                               sist' <- eval sist e env impl
-                                                                              printProc sist'
+                                                                              --printProc sist'
                                                                               st' <- newSpec sist' env st
                                                                               handleCmd st' Run) --return (Just st'))
                                                     imp)

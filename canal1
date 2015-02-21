@@ -1,3 +1,4 @@
 A = c?x -> d!x -> A
+B = c!(3+1) -> d?t -> B
 
-SISTEMA = (c!(3+1) -> d?t -> SKIP) || (c?x -> d!x -> A)
+SISTEMA = B || (c?x -> d!x -> A)

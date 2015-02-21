@@ -1,6 +1,55 @@
 module Exec where
 
 import Common
+import Data.List
+import GhcMonad            (liftIO)
+import qualified Language.Haskell.Interpreter as I
+
+execAct :: Act -> Imp -> IO ()
+execAct a i = do r <- I.runInterpreter (execAct' a i)
+                 case r of
+                    Left err -> printInterpreterError err
+                    Right () -> return ()
+          
+execAct' a i = do I.loadModules [i]
+                  I.setTopLevelModules [takeWhile (/='.') i]
+                  I.setImportsQ [("Prelude", Nothing)]
+                  res <- I.interpret a (I.as :: IO ())
+                  liftIO res
+               
+execPred :: Pred -> Imp -> IO Bool
+execPred p i = do r <- I.runInterpreter (execPred' p i)
+                  case r of
+                    Left err -> printInterpreterError err >> return False
+                    Right b -> b
+                    
+execPred' p i = do I.loadModules [i]
+                   I.setTopLevelModules [takeWhile (/='.') i]
+                   I.setImportsQ [("Prelude", Nothing)]
+                   res <- I.interpret p (I.as :: IO Bool)
+                   return res
+          
+evalExp :: Value -> Imp -> IO String
+evalExp v i = do r <- I.runInterpreter (evalExp' v i)
+                 case r of
+                    Left err -> printInterpreterError err >> return ""
+                    Right e -> return e
+                    
+evalExp' v i = do I.loadModules [i]
+                  I.setTopLevelModules [takeWhile (/='.') i]
+                  I.setImportsQ [("Prelude", Nothing)]
+                  exp <- I.eval v
+                  return exp
+          
+say :: String -> I.Interpreter ()
+say = liftIO . putStrLn
+
+printInterpreterError :: I.InterpreterError -> IO ()
+printInterpreterError e = putStrLn $ "Ups... " ++ (show e)
+
+{-
+
+import Common
 import Control.Applicative
 import Data.List
 import DynFlags
@@ -10,6 +59,8 @@ import GHC.Paths                        --                                      
 import GhcMonad            (liftIO)     -- from ghc7.7 and up you can use the usual
                                         -- liftIO from Control.Monad.IO.Class
 
+                                        
+                                        
 
 execAct :: Act -> Imp -> IO ()
 execAct "" _ = return ()
@@ -64,7 +115,7 @@ execExp v file = defaultErrorHandler defaultFatalMessager defaultFlushOut $ do
         act <- unsafeCoerce <$> compileExpr ("show $ "++v)
         liftIO act
         
-        
+   -}        
 -- runGhc :: Maybe FilePath -> Ghc a -> IO a
 -- getSessionDynFlags :: GhcMonad m => m DynFlags
 -- setTargets :: GhcMonad m => [Target] -> m ()

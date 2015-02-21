@@ -4,6 +4,7 @@ module Common where
     type Act = String
     type Id = String
     type Value = String
+    type Exp = String
     
     data Event = Out Id Pred | In Id Act | C Channel
     data Channel = ComOut Id Value | ComIn Id Id | Com Id Value  deriving(Show) -- ComIn idEvento idVariable, Com es el resultado de la sincronizacion de dos canales...
@@ -46,10 +47,10 @@ module Common where
         show (Out s _) = show s
         show (C c)     = show c
                                         
-    data ProcDef = Def String Proc
+    data ProcDef = Def String [Exp] Proc 
     data Proc = Skip 
               | Stop 
-              | Ref String 
+              | Ref String [Exp]
               | Prefix Event Proc 
               | Parallel Proc Proc 
               | ExtSel [Proc]

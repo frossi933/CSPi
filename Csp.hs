@@ -63,8 +63,8 @@ module Csp where
     menu' v (Prefix e@(In _ _) p) _     = (v, (Set.singleton e, Set.empty))
     menu' v (Prefix e@(Out _ _) p) _    = (v, (Set.singleton e, Set.empty))
     menu' v (Prefix e@(C c) p) _        = (v, (Set.empty, Set.singleton c))  
-    menu' v (Ref s) e                   = if elem s v then (v, (Set.empty, Set.empty))                      -- ya lo visitamos
-                                                      else case envLookup s e of
+    menu' v (Ref s exp) e               = if elem s v then (v, (Set.empty, Set.empty))                      -- ya lo visitamos
+                                                      else case envGetRef s exp e of
                                                             Just p  -> menu' (s:v) p e
                                                             Nothing -> error $ "Referencia a proceso "++s++" inexistente"
     menu' v (Parallel l r) e            = let (v', (mle, mlc))  = menu' v l e
@@ -184,8 +184,8 @@ module Csp where
     evalChan Stop _ _ _                        = return Stop
     evalChan (Prefix (C (ComOut n _)) p) c _ _ = if nameOfCom c == n then return p                          -- deberia chequear que no se llamen igual canales y eventos
                                                                      else return Stop
-    evalChan (Prefix (C (ComIn n var)) p) (Com c exp) env i = if c == n then do --val <- execExp exp i
-                                                                                return $ sustProc exp var env p
+    evalChan (Prefix (C (ComIn n var)) p) (Com c exp) env i = if c == n then do val <- evalExp exp i
+                                                                                return $ sustProc val var env p
                                                                         else return Stop
     evalChan (Prefix e p) _ _ _                  = return Stop
     evalChan (Ref s) c env i                    = case envLookup s env of
