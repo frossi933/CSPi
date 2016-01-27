@@ -228,3 +228,27 @@ Qed.
 -> esta bien mi idea de correctitud?
 
 *)
+
+
+CSP como tipo coinductivo
+
+Trace := lista posiblemente infinita de Output
+isTrace : CSP -> Trace -> Prop
+
+Variable execAct : Evento -> Output. 
+Variable inputSpec : Input -> nat -> bool
+
+Parameter random : Estado -> Event
+
+smallevalStep : Proc -> Event -> Proc
+
+refine : forall p q t, smallevalStep p e q -> isTrace q t -> isTrace p (e : t)
+
+
+eval : Proc -> Trace
+
+correct_eval : forall P, isTrace P (eval P). 
+
+
+
+
