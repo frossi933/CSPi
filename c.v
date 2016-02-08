@@ -55,7 +55,7 @@ Definition Proc_decompose (e:Proc) : Proc :=
   | par m p => par m p
   end.
 
-Theorem Proc_decompose_lemma : forall e:Proc, e = Proc_decompose e.
+Lemma Proc_decompose_lemma : forall p:Proc, p = Proc_decompose p.
 Proof.
   intro e.
   case e;trivial.
@@ -109,6 +109,7 @@ CoInductive OpSem : Proc -> Event -> Proc -> Prop :=
 | sem6: forall (p q r:Proc)(e:Event), OpSem p e r -> OpSem (seq p q) e (seq r q)
 | sem7: forall (p r:Proc)(e:Event), OpSem p e r -> OpSem (seq skip p) e r (* ?? *)
 | sem7a: forall (p r:Proc)(e:Event), OpSem (seq skip p) e p (* ?? *)
+| sem7b: forall (p r:Proc)(e:Event), OpSem p e skip -> OpSem (seq p r) e r (* ?? *)
 | sem8: forall (p :Proc)(e:Event), OpSem (seq stop p) e stop
 | sem9: forall (e:Event), OpSem stop e stop
 | sem10:forall (e:Event), OpSem skip e skip.
@@ -118,56 +119,52 @@ CoFixpoint a:Proc := pref e a.
 
 Require Import Coq.Arith.EqNat.
 
-Parameter beq_event : Event -> Event -> bool.
-
-(*CoFixpoint choi_eval (p1 p2:Proc) (e:Event) : Proc :=
-
-
-  | skip, pref v r => if beq_event v e then r else pref v r
-  | skip, stop => skip
-  | skip, choi aa bb => choi skip (choi_eval aa bb e)
-  | skip, seq aa bb => choi skip (seq_eval aa bb e)
-  | skip, par aa bb => choi skip (par_eval aa bb e)
-
-  | pref v r, bb => if beq_event v e then r else pref v r
-  | aa, bb => bb
-  end
-
-CoFixpoint seq_eval (pp qq:Proc)(e:Event) : Proc :=
-  match pp with
-    skip => match qq with 
-              skip => skip
-            | stop => stop
-            | pref v r => if beq_event v e then r else pref v r
-            | ppp => skip
-            end
-  | stop => stop
-  | pref v r => if beq_event v e then (seq r qq) else match qq with 
-                                                      skip => pp
-                                                    | stop => pp
-                                                    | qqq => (seq pp qqq)
-                                                    end
-  | p => skip
-  end
-with par_eval (pp qq:Proc)(e:Event) : Proc :=
-  match pp, qq with
-    skip, skip => skip
-  | w , i => skip
-  end
-with
+(*Parameter beq_event : Event -> Event -> bool.
+Axiom event_ref : forall e:Event, beq_event e e = true.
 *)
+Inductive Beq_event : Event -> Event -> Prop :=
+  beq_in : forall (i1 i2:Id)(p1 p2:Pred), i1 = i2 -> Beq_event (EIn i1 p1)(EIn i2 p2)
+| beq_out : forall (i1 i2:Id)(a1 a2:Act), i1 = i2 -> Beq_event (EOut i1 a1)(EOut i2 a2).
 
+Definition beq_event (e1 e2: Event) : bool := match e1, e2 with
+  EIn i1 p1 , EIn i2 p2 => beq_nat i1 i2
+| EOut i1 a1 , EOut i2 a2 => beq_nat i1 i2
+| _ , _ => false end.
 
-CoInductive Menu : Set :=
+Lemma eq_event_ref : forall e:Event, beq_event e e = true.
+Proof.
+  intro e.
+  induction e;symmetry;exact (beq_nat_refl i).
+Qed.
+
+Theorem eq_event_true : forall (e1 e2:Event), beq_event e1 e2 = true -> Beq_event e1 e2.
+Proof.
+  intros e1 e2 H.
+  induction e1;induction e2.
+  constructor.
+  simpl in H.
+  apply beq_nat_true.
+  auto.
+  inversion H.
+  inversion H.
+  constructor.
+  apply beq_nat_true.
+  simpl in H.
+  auto.
+Qed.
+
+Inductive Menu : Set :=
   none : Menu
 | some : Event -> Menu -> Menu.
 
-CoFixpoint concatm (m1 m2:Menu) : Menu :=
+Fixpoint concatm (m1 m2:Menu) : Menu :=
   match m1 with
     none => m2
   | some e m1' => some e (concatm m1' m2)
   end.
 
+(* A = A [] B 
+   B = B [] A 
 CoFixpoint menu (p:Proc) : Menu :=
   match p with
     stop => none
@@ -181,34 +178,94 @@ CoFixpoint menu (p:Proc) : Menu :=
                   end
   | l => none
   end.
+*)
+
+Parameter menu : Proc -> Menu.
+Fixpoint elemOfMenu (e:Event)(m:Menu) : bool := match m with
+  none => false
+| some e' m' => if beq_event e e' then true else elemOfMenu e m'
+end.
 
 CoFixpoint smallstep_eval (p:Proc) (e:Event) : Proc :=
   match p with 
     stop => stop
   | skip => skip
   | pref v r => if beq_event v e then r else pref v r
-  | choi p1 p2 => match p1, p2 with 
-                  stop, p2' => stop
-                | p1', stop => stop
-                | skip, skip => skip (* no deberia ocurrir, ? *)
-                | skip, p2' => choi skip (smallstep_eval p2' e)
-                | p1', skip => choi (smallstep_eval p1' e) skip
-                | pref v1 r1 , p2' => if beq_event v1 e then r1 
-                                      else_event v2 e then r2 else p
-                | pref v1 r1, choi pp1 pp2 => if beq_event v1 e then r1 else
-                                              
-                | p1', p2' => skip
-                end
-  | seq p1 p2 => match p1, p2 with
-                   skip, skip => skip
-                 | skip, p2' => seq skip (smallstep_eval p2' e)
-                 | stop, p2' => stop
-                 |  => if beq_event v e then (seq r p2) else match p2 with 
-                                                      skip => p1
-                                                    | stop => p1
-                                                    | qqq => (seq p1 qqq)
-                                                    end
-                 | p => skip
-                 end
-  | par a b => par (smallstep_eval a e) (smallstep_eval b e)
+  | choi stop p2 => stop
+  | choi p1 stop => stop
+  | choi skip skip => skip
+  | choi skip p2 => choi skip (smallstep_eval p2 e)
+  | choi p1 skip => choi (smallstep_eval p1 e) skip
+  | choi p1 p2 => if elemOfMenu e (menu p1) then choi (smallstep_eval p1 e) skip
+                                            else if elemOfMenu e (menu p2) then choi skip (smallstep_eval p2 e)
+                                                                           else choi p1 p2
+  | seq skip skip => skip
+  | seq skip p2 => seq skip (smallstep_eval p2 e)
+  | seq stop p2 => stop
+  | seq p1 p2 => seq (smallstep_eval p1 e) p2
+  | par skip skip => skip
+  | par skip p2 => par skip (smallstep_eval p2 e)
+  | par p1 skip => par (smallstep_eval p1 e) skip
+  | par p1 p2 => par (smallstep_eval p1 e) (smallstep_eval p2 e)
   end.
+
+(* ver de probar este tipo de cosas ... *)
+Lemma seqSkip : forall (p1 p2:Proc)(e:Event), OpSem p1 e p2 -> OpSem (seq skip p1) e p2.
+
+Parameter ev:Event.
+Eval compute in (match smallstep_eval stop ev with
+                   stop => stop
+                 | p => skip end).
+
+Lemma sseval_stop : forall (e:Event), smallstep_eval stop e = stop.
+Proof.
+  intro e.
+  proc_unfold (smallstep_eval stop e).
+  simpl.
+  auto.
+Qed.
+
+Lemma sseval_skip : forall (e:Event), smallstep_eval skip e = skip.
+Proof.
+  intro e.
+  proc_unfold (smallstep_eval skip e).
+  simpl;auto.
+Qed.
+
+Lemma sseval_pref_true : forall (e:Event)(p:Proc), smallstep_eval (pref e p) e = p.
+Proof.
+  intros e p.
+  proc_unfold (smallstep_eval (pref e p) e).
+  simpl.
+  rewrite eq_event_ref.
+  destruct p;auto.
+Qed.
+
+Lemma sseval_pref_false : forall (e f:Event)(p:Proc), ~(Beq_event e f) -> smallstep_eval (pref e p) f = (pref e p).
+Proof.
+  intros e f p H.
+  proc_unfold (smallstep_eval (pref e p) f).
+  simpl.
+  case_eq (beq_event e f);intro H1.
+  apply eq_event_true in H1.
+  contradiction.
+  auto.  
+Qed.
+
+Theorem sseval_correct : forall (e:Event)(p:Proc), OpSem p e (smallstep_eval p e).
+Proof.
+  cofix H.
+  intros e p.
+  case p.
+  rewrite sseval_stop.
+  constructor.
+  rewrite sseval_skip.
+  constructor.
+  intros e1 p1.
+  case_eq (
+
+
+  simpl.
+  compute.
+  simpl.
+Qed.
