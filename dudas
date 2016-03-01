@@ -1,0 +1,10 @@
+- Definiciones basicas para los eventos
+--- que def de igualdad es mejor? como usarla?
+- Chequear def de semantica operacional de CSP
+- Chequear def de Trace
+- Que funcion menu usar?
+- Ver demostracion de smallstep_correct
+- Ver definicion de eval
+--- agregar empties en la def de isTrace o hacer una funcion que los saque de la traza?
+- Como estructurar las demostraciones teniendo cosas como rand?
+
