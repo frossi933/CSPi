@@ -93,14 +93,22 @@ CoInductive OpSem : Proc -> Event -> Proc -> Prop :=
 | choi_stopr:   forall (p q:Proc)(e:Event), OpSem p e stop -> OpSem (choi q p) e stop 
 | choi_left:    forall (p q r:Proc)(e:Event), OpSem p e r -> OpSem (choi p q) e (choi r skip)
 | choi_right:   forall (p q r:Proc)(e:Event), OpSem q e r -> OpSem (choi p q) e (choi skip r)
-| seq_skips:    forall (e:Event), OpSem (seq skip skip) e skip
+| seq_skips:    forall (e:Event), OpSem (seq skip skip) e skip (* axioma o alguna equivalencia *)
 | seq_left:     forall (p q r:Proc)(e:Event), OpSem p e r -> OpSem (seq p q) e (seq r q)
 | seq_right:    forall (p q:Proc)(e:Event), OpSem p e q -> OpSem (seq skip p) e (seq skip q)
-| seq_skipstop: forall (p q:Proc)(e:Event), OpSem p e stop -> OpSem (seq skip p) e stop
-| seq_stop:     forall (p q:Proc)(e:Event), OpSem p e stop -> OpSem (seq p q) e stop
-| par_skips:    forall (e:Event)(s:EvSet), OpSem (par s skip skip) e skip
-| par_skipl:    forall (p q:Proc)(e:Event)(s:EvSet), isMember e s -> OpSem p e q -> OpSem (par s skip p) e (par s skip q)
-| par_skipr:    forall (p q:Proc)(e:Event)(s:EvSet), isMember e s -> OpSem p e q -> OpSem (par s p skip) e (par s q skip)
+| seq_skipstop: forall (p q:Proc)(e:Event), OpSem p e stop -> OpSem (seq skip p) e stop (* contemplado en el caso anterior *)
+| seq_stop:     forall (p q:Proc)(e:Event), OpSem p e stop -> OpSem (seq p q) e stop (* contemplado en seq_left *)
+| par_skips:    forall (e:Event)(s:EvSet), OpSem (par s skip skip) e skip (* axioma o alguna equivalencia *)
 | par_sync:     forall (p q r t:Proc)(e:Event)(s:EvSet), isMember e s -> OpSem p e q -> OpSem r e t -> OpSem (par s p r) e (par s q t)
 | par_left:     forall (p q r:Proc)(e:Event)(s:EvSet), ~(isMember e s) -> OpSem p e r -> OpSem (par s p q) e (par s r q)
 | par_right:    forall (p q r:Proc)(e:Event)(s:EvSet), ~(isMember e s) -> OpSem q e r -> OpSem (par s p q) e (par s p r).
+(* evset debe contener todos los eventos en comun entre p y q, sino no se asegura el buen comportamiento *)
+
+CoInductive NullProc : Proc -> Prop :=
+  nullstop : NullProc stop
+| nullchoil : forall p q:Proc, NullProc q -> NullProc (choi q p)
+| nullchoir : forall p q:Proc, NullProc q -> NullProc (choi p q)
+| nullseq : forall p q:Proc, NullProc q -> NullProc (seq q p)
+| nullseq2 : forall p:Proc, NullProc p -> NullProc (seq skip p)
+| nullparl : forall (p q:Proc)(s:EvSet), NullProc q -> NullProc (par s q p)
+| nullparr : forall (p q:Proc)(s:EvSet), NullProc q -> NullProc (par s p q).

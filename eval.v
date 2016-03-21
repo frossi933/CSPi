@@ -49,7 +49,15 @@ CoFixpoint menu (p:Proc) : Menu :=
   end.
 *)
 
+(*
+Definition Conf : Set := Event -> bool. (* configuracion estatica del pred de cada evento *) 
+Parameter conf : Conf.
+Definition conftrue (e:Event) := true.
+Parameter menu_conf : Proc -> Conf -> Menu.
+Definition menu (p: Proc) : Menu := menu_conf p conftrue.
+*)
 Parameter menu : Proc -> Menu.
+
 Fixpoint elemOfMenu (e:Event)(m:Menu) : bool := match m with
   none => false
 | some e' m' => if beq_event e e' then true else elemOfMenu e m'
@@ -61,9 +69,9 @@ CoFixpoint smallstep_eval (p:Proc) (e:Event) : Proc :=
   | skip => skip
   | pref v r => if beq_event v e then r else pref v r
   | choi stop p2 => stop
-  | choi p1 stop => stop
   | choi skip skip => skip
   | choi skip p2 => choi skip (smallstep_eval p2 e)
+  | choi p1 stop => stop
   | choi p1 skip => choi (smallstep_eval p1 e) skip
   | choi p1 p2 => if elemOfMenu e (menu p1) then choi (smallstep_eval p1 e) skip
                                             else if elemOfMenu e (menu p2) then choi skip (smallstep_eval p2 e)
@@ -90,6 +98,11 @@ Parameter ev:Event.
 Eval compute in (match smallstep_eval stop ev with
                    stop => stop
                  | p => skip end).
+
+
+(*****************************
+   Demostracion de correctitud de small-step 
+*****************************) 
 
 Lemma sseval_stop : forall (e:Event), smallstep_eval stop e = stop.
 Proof.
@@ -138,10 +151,21 @@ Lemma sseval_choi_stopr : forall (e:Event)(p:Proc), smallstep_eval (choi p stop)
 Proof.
   intros e p.
   proc_unfold (smallstep_eval (choi p stop) e);simpl.
-  case p;simpl;auto.  
+  case p;simpl;auto.
+  
+Axiom choiskipskip : skip = choi skip skip.
+
+Lemma sseval_choi_skip : forall (e:Event)(p:Proc), smallstep_eval (choi skip p) e = choi skip (smallstep_eval p e).
+Proof.
+  intros e p.
+  proc_unfold (smallstep_eval (choi skip p) e);simpl.
+  case_eq p;intro H1;simpl;auto.
+  rewrite sseval_skip.
+  exact choiskipskip.
 Qed.
 
-Lemma sseval_choi_skip : forall (e:Event)(p q:Proc), OpSem p e q -> smallstep_eval (choi skip p) e = choi skip q.
+
+Lemma sseval_choi_skipp : forall (e:Event)(p q:Proc), OpSem p e q -> smallstep_eval (choi skip p) e = choi skip q.
 Proof.
   intros e p q H.
   proc_unfold (smallstep_eval (choi skip p) e);simpl.
@@ -153,13 +177,14 @@ Proof.
 
 
 
-Theorem sseval_correct : forall (e:Event)(p:Proc), p<>stop -> OpSem p e (smallstep_eval p e).
+Theorem sseval_correct : forall (e:Event)(p:Proc), ~(NullProc p) -> OpSem p e (smallstep_eval p e).
 Proof.
   cofix H.
   intros e p H1.
   case_eq p. 
   intro H2.
-  contradiction.
+  rewrite H2 in H1.
+  elim H1;constructor.
   intro H2.
   rewrite sseval_skip.
   constructor.
@@ -169,7 +194,19 @@ Proof.
   constructor;assumption.
   rewrite (sseval_pref_false e1 e p1 H3).
   constructor;assumption.
-  intros p0 p1.
+  intros p0 p1 H2.
+  case_eq p0.
+   intro H3.
+   rewrite H3 in H2;rewrite H2 in H1;elim H1;constructor;constructor.
+   rewrite (sseval_choi_skip e p1).
+   constructor.
+   apply (H e p1).
+   unfold not;intro H4.
+   apply H1.
+   rewrite H2;apply nullchoir;assumption.
+
+   intros e0 p2 H4.
+   
 (* ill-formed
 
   exact (H e (choi p0 p1)).
@@ -180,6 +217,10 @@ Proof.
 Qed.
 *)
 
+
+(*********************************
+ Fin Demostracion 
+*********************************)
 
 Theorem ss_refine : forall (p q:Proc)(t:Trace)(e:Event), OpSem p e q -> isTrace t q -> isTrace ((execAct e) :: t) p.
 Proof.
@@ -210,6 +251,7 @@ CoFixpoint eval (p:Proc) : Trace := match p with
         | Some (EOut id act as e) => execAct e :: eval (smallstep_eval p e)
         end
 end.
+
 
 Theorem eval_correct : forall (p:Proc), isTrace (eval p) p.
 Proof.

@@ -1,25 +1,9 @@
 Require Import Coq.Arith.EqNat.
 
+Load evset.
 
-Definition Id : Set := nat.
-Definition Input : Set := bool.
-Parameter Output : Set.
-(*
-Definition Output : Set := nat.
-Parameter Pred : nat -> Input.
-Parameter Act : nat -> Output.
-*)
+Definition Menu := EvSet.
 
-Definition Pred : Set := nat -> Input.
-Definition Act : Set := nat -> Output.
-
-Inductive Event : Set :=
-  Eps : Event
-| EIn : Id -> Pred -> Event
-| EOut : Id -> Act -> Event.
-
-
-Definition EvSet : Set := list Event.
 Parameter execAct : Event -> Output.
 
 
@@ -28,7 +12,7 @@ Definition Name : Set := nat.
 
 
 (* Expresiones del lenguaje CSP *)
-Inductive Proc : Set := 
+Inductive Proc : Type := 
   stop : Proc
 | skip : Proc
 (*
@@ -40,42 +24,7 @@ Inductive Proc : Set :=
 | par :  EvSet -> Proc -> Proc -> Proc
 | id : Name -> Proc
 | rec : Name -> Proc -> Proc.
-(*
-Definition Proc_decompose (e:Proc) : Proc :=
-  match e with
-    stop => stop
-  | skip => skip
-  | pref v p => pref v p
-  | choi m p => choi m p
-  | seq m p => seq m p
-  | par s m p => par s m p
-  | id n => id n
-  | rec n p => rec n p
-  end.
 
-Lemma Proc_decompose_lemma : forall p:Proc, p = Proc_decompose p.
-Proof.
-  intro e.
-  case e;trivial.
-Qed.
-
-Ltac proc_unfold term := apply trans_equal with (1:=Proc_decompose_lemma term).
-*)
-
-Definition beq_event (e1 e2: Event) : bool := match e1, e2 with
-  EIn i1 p1 , EIn i2 p2 => beq_nat i1 i2
-| EOut i1 a1 , EOut i2 a2 => beq_nat i1 i2
-| _ , _ => false end.
-
-Fixpoint isMember (e:Event)(s:EvSet) : Prop := match s with
-  nil => False
-| cons x xs => if beq_event e x then True else isMember e xs
-end.
-
-Fixpoint isElem (e:Event)(s:EvSet) : bool := match s with
-  nil => false
-| cons x xs => if beq_event e x then true else isElem e xs
-end.
 
 Fixpoint sust (p:Proc)(n:Name)(q:Proc) : Proc :=
 match q with
@@ -91,7 +40,7 @@ end.
 
 Inductive Op : Proc -> Event -> Proc -> Prop :=
   abort: Op stop Eps stop
-| prefok: forall (e:Event)(p:Proc), Op (pref e p) e p
+| prefok: forall (e0 e:Event)(p:Proc), Beq_event e0 e -> Op (pref e0 p) e p
 | choil: forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi p r) e q
 | choir: forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi r p) e q
 | choiepsl: forall (p q r:Proc), Op p Eps q -> Op (choi p r) Eps (choi q r)
@@ -145,13 +94,15 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
   | p , v => None
   end.
 
+
+(* Ejemplo de eval simple *)
 Parameter pred:Pred.
 Definition e:Event := EIn 1 pred.
-
 Definition p : Proc := rec 0 (pref Eps (id 0)).
-
 Eval compute in (smallstep_eval p Eps).
 
+
+(*
 Inductive NullProc : Proc -> Prop :=
   nullstop : NullProc stop
 | nullchoil : forall p q:Proc, NullProc q -> NullProc (choi q p)
@@ -165,20 +116,253 @@ Lemma sseval_nullproc: forall (e:Event)(p:Proc), NullProc p -> smallstep_eval p 
 Proof.
   intros e p H.
   induction H;intros;simpl.
+*)
+
+Lemma iselemmember: forall (e:Event)(s:EvSet), isElem e s = true <-> isMember e s.
+Proof.
+  intros.
+  unfold iff;split;intro H.
+  induction s;intros;simpl.
+  inversion H.
+  simpl in H.
+  case_eq (beq_event e0 a);intro H0.
+  apply (sing e0 a s).
+  induction e0;induction a;intros;simpl; try (inversion H0).
+  
+  constructor.
+  rewrite (beq_nat_true i i0).
+  constructor.
+  assumption.
+  rewrite (beq_nat_true i i0).
+  constructor.
+  assumption.
+  apply cons.
+  rewrite H0 in H.
+  apply IHs.
+  auto.
+
+  induction H;intros.
+  inversion H.
+  simpl;auto.
+  simpl.
+  rewrite <- (beq_nat_refl i);auto.
+  simpl.
+  rewrite <- (beq_nat_refl i);auto.
+  simpl.
+  case_eq (beq_event e0 f);intros;auto.
+Qed.
+
+Lemma not_mem:forall (e:Event)(s:EvSet), isElem e s = false -> ~(isMember e s).
+Proof.
+  intros e s H H1.
+  rewrite <- (iselemmember e s) in H1;rewrite H1 in H;inversion H.
+Qed.
+
+
 Theorem sseval_correct: forall (e:Event)(p q:Proc), smallstep_eval p e = Some q -> Op p e q.
 Proof.
-  intros e p q H.
-  induction p;induction e;intros;simpl.
-  compute in H. inversion H. constructor.
+  intros e p. (* intros mal? *)
+  induction p;intros. simpl.
+  case_eq e;intros.
+  rewrite H0 in H.
+  inversion H;constructor.
+  rewrite H0 in H.
+  inversion H;constructor.
+  rewrite H0 in H.
+  inversion H;constructor.
   compute in H;inversion H.
-  compute in H;inversion H.
-  compute in H;inversion H.
-  compute in H;inversion H.
-  compute in H;inversion H.
-  compute in H.
+  case_eq (beq_event e0 e);intro H0; unfold smallstep_eval in H;rewrite H0 in H.
+   inversion H.
+   rewrite <- H2.
+   apply (prefok e0 e p0 (eq_event_true e0 e H0)).
+   inversion H.
+  case_eq e;intro H0.
+  rewrite H0 in *.
+  simpl in H.
+  case_eq (smallstep_eval p1 Eps);   case_eq (smallstep_eval p2 Eps) ; intros;rewrite H1 in *;rewrite H2 in *;inversion H.   
+  apply (choiepsl p1 p3 p2).
+  apply (IHp1 p3).
+  trivial.
+  apply (choiepsl p1 p0 p2).
+  apply (IHp1 p0).
+  trivial.
+  apply (choiepsr p2 p0 p1).
+  apply (IHp2 p0).
+  trivial.
+
+  intros p0 H1.
+  simpl in H.
+  rewrite H1 in *.
+  case_eq (smallstep_eval p1 (EIn H0 p0));case_eq (smallstep_eval p2 (EIn H0 p0));intros;rewrite H2 in *;rewrite H3 in *;inversion H.   
+  apply choil.
+  apply IHp1.
+  assumption.
+  discriminate.
+  apply choil.
+  apply IHp1.
+  assumption.
+  discriminate.
+  apply choir.
+  apply IHp2.
+  assumption.
+  discriminate.
+
+  intros a H1.
+  simpl in H.
+  rewrite H1 in *.
+  case_eq (smallstep_eval p1 (EOut H0 a));case_eq (smallstep_eval p2 (EOut H0 a));intros;rewrite H2 in *;rewrite H3 in *;inversion H.
+  apply choil.
+  apply IHp1.
+  assumption.
+  discriminate.
+  apply choil.
+  apply IHp1.
+  assumption.
+  discriminate.
+  apply choir.
+  apply IHp2.
+  assumption.
+  discriminate.
+
+  simpl in H.
+  case_eq p1;intros;rewrite H0 in *; try (rewrite <- H0 in H;case_eq (smallstep_eval p1 e);intros;rewrite H1 in *;inversion H;constructor;apply IHp1;rewrite H0 in H1;trivial;case_eq (smallstep_eval (pref e0 p0) e);intros;rewrite H1 in *;inversion H;constructor;apply IHp1;trivial).
+  case_eq e;intros;rewrite H1 in *.
+  inversion H.
+  rewrite <- H3.
+  constructor.
+  simpl in H.
+  inversion H.
+  simpl in H.
   inversion H.
 
-  compute in H.
-  case_eq e;intro H1.
-  rewrite H1 in H;auto.
+  simpl in H.
+  case_eq p1;[ intros H0 | intros H0 | intros e1 p0 H0 | intros p0 p3 H0 | intros p0 p3 H0 | intros e1 p0 p3 H0 | intros n H0 | intros n p0 H0];
+  rewrite H0 in H;rewrite <- H0 in H;rewrite <- H0;case_eq p2;intros;rewrite H1 in H;rewrite <- H1 in H;rewrite <- H1;
+  case_eq (isElem e e0);intro H2;rewrite H2 in H;case_eq(smallstep_eval p1 e);intros;rewrite H3 in H;
+  inversion H;
+  case_eq (smallstep_eval p2 e);intros;try(rewrite H4 in H);inversion H;
+   try (apply sync; [exact (IHp1 p3 H3) | exact (IHp2 p4 H4) | apply (iselemmember e e0);auto ]);
+   try (apply sync; [exact (IHp1 p4 H3) | exact (IHp2 p5 H4) | apply (iselemmember e e0);auto ]);
+   try (apply sync; [exact (IHp1 p0 H3) | exact (IHp2 p3 H4) | apply (iselemmember e e0);auto ]);
+   try (apply sync; [exact (IHp1 p5 H3) | exact (IHp2 p6 H4) | apply (iselemmember e e0);auto ]);
+   try (apply sync; [exact (IHp1 p6 H3) | exact (IHp2 p7 H4) | apply (iselemmember e e0);auto ]);
+   try (apply parl; [apply (IHp1 p3 H3) | exact (not_mem e e0 H2)]);
+   try (apply parl; [apply (IHp1 p0 H3) | exact (not_mem e e0 H2)]);
+   try (apply parl; [apply (IHp1 p4 H3) | exact (not_mem e e0 H2)]);
+   try (apply parl; [apply (IHp1 p5 H3) | exact (not_mem e e0 H2)]);
+   try (apply parl; [apply (IHp1 p6 H3) | exact (not_mem e e0 H2)]);
+   try (apply parr; [apply (IHp2 p3 H4) | exact (not_mem e e0 H2)]);
+   try (apply parr; [apply (IHp2 p0 H4) | exact (not_mem e e0 H2)]);
+   try (apply parr; [apply (IHp2 p4 H4) | exact (not_mem e e0 H2)]);
+   try (apply parr; [apply (IHp2 p5 H4) | exact (not_mem e e0 H2)]);
+   try (apply parr; [apply (IHp2 p6 H4) | exact (not_mem e e0 H2)]).
+
+
+  (* skip,skip*)
+  rewrite H0 in H3;inversion H3.
+  rewrite H0 in H3;inversion H3.
+  rewrite H1 in H4;inversion H4.
+  destruct e;simpl;inversion H5.
+  rewrite H1;rewrite H0 in H8;rewrite <- H8.
   constructor.
+  rewrite H1 in H4;inversion H4.
+  rewrite H0 in H3;inversion H3.
+  rewrite H1 in H4;inversion H4.
+  rewrite H0,H1 in *.
+  destruct e;simpl;inversion H5.
+  constructor.
+  
+  simpl in H.
+  destruct e;simpl;inversion H.
+  constructor.
+ 
+  simpl in H.
+  destruct e;simpl;inversion H.
+  constructor.
+Qed.
+  
+CoInductive Trace : Set :=
+  nil : Trace+
+| cons : Output -> Trace -> Trace.
+
+Notation "e :: t" := (cons e t).
+
+(* Successful termination or Finite Trace *)
+CoInductive succTerm : Proc -> Prop :=
+  st_skip : succTerm skip
+| st_pref : forall (e:Event)(p:Proc), succTerm p -> succTerm (pref e p)
+| st_choi : forall (p1 p2:Proc), succTerm p1 -> succTerm p2 -> succTerm (choi p1 p2)
+| st_seq : forall (p1 p2:Proc), succTerm p1 -> succTerm p2 -> succTerm (seq p1 p2)
+| st_par : forall (p1 p2:Proc)(s:EvSet), succTerm p1 -> succTerm p2 -> succTerm (par s p1 p2).
+
+
+CoFixpoint concatt (t1 t2:Trace) : Trace := match t1 with
+  nil => t2
+| cons o t1' => cons o (concatt t1' t2)
+end.
+
+CoInductive MergeTrace : Trace -> Trace -> Trace -> Prop :=
+  mt_nil1: forall t:Trace, MergeTrace nil t t
+| mt_cons1: forall (o:Output)(t1 t2 t3:Trace), MergeTrace t1 t2 t3 -> 
+                                               MergeTrace (cons o t1) t2 (cons o t3)
+| mt_nil2: forall t:Trace, MergeTrace t nil t
+| mt_cons2: forall (o:Output)(t1 t2 t3:Trace), MergeTrace t1 t2 t3 -> 
+                                               MergeTrace t1 (cons o t2) (cons o t3).
+CoInductive isTrace : Trace -> Proc -> Prop :=
+  nilt : forall p:Proc, isTrace nil p (* ?? *)
+| preft : forall (t:Trace)(p:Proc)(e:Event), isTrace t p -> isTrace ((execAct e)::t) (pref e p)
+| choit1 : forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> isTrace t2 p2 -> isTrace t1 (choi p1 p2)
+| choit2 : forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> isTrace t2 p2 -> isTrace t2 (choi p1 p2)
+| seqt: forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
+| part: forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).
+
+
+
+Fixpoint menu (p:Proc) : Menu := match p with
+   stop => set_add Eps empty_set
+ | skip => empty_set
+ | pref e r => set_add e (menu r)
+ | choi r q => set_union (menu r) (menu q)
+ | seq skip q => set_add Eps empty_set
+ | seq r q => menu r
+ | par s r q => set_union (set_inter (set_inter (menu r) (menu q)) s) (set_union (set_diff (menu r) s) (set_diff (menu q) s))
+ | id n => set_add Eps empty_set
+ | rec n p => set_add Eps empty_set
+end.
+
+Theorem menu_correct : forall (p:Proc)(e:Event), let m=menu p in (isElem e m -> exists p':Proc, Op p e p').
+
+Parameter tick : Output.
+Parameter empty : Output.
+Parameter rand : unit -> bool. (* ?? *)
+
+
+
+Fixpoint choose (m:Menu) : option Event := match m with
+  none => None
+| some e none => Some e
+| some e es => if rand tt then Some e
+                            else choose es
+end.
+
+CoFixpoint eval (p:Proc) : Trace := match p with
+  stop => nil
+  skip => tick :: nil
+  q => match choose (menu q) with
+         None => nil
+       | Some (EOut id act as e) => match smallstep_eval p e with
+                                      None => execAct act :: nil
+                                      Some r => execAct act :: eval r
+                                    end
+       | Some e => empty :: match smallstep_eval p e with
+                              None => empty :: nil
+                              Some r => empty :: eval r
+                            end
+       end
+end.
+
+Theorem eval_correct: forall (p:Proc), isTrace (eval p) p.
+
+
+
+
