@@ -4,12 +4,7 @@ Load evset.
 
 Definition Menu := EvSet.
 
-Parameter execAct : Event -> Output.
-
-
 Definition Name : Set := nat.
-
-
 
 (* Expresiones del lenguaje CSP *)
 Inductive Proc : Type := 
@@ -39,22 +34,23 @@ match q with
 end.
 
 Inductive Op : Proc -> Event -> Proc -> Prop :=
-  abort: Op stop Eps stop
-| prefok: forall (e0 e:Event)(p:Proc), Beq_event e0 e -> Op (pref e0 p) e p
-| choil: forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi p r) e q
-| choir: forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi r p) e q
-| choiepsl: forall (p q r:Proc), Op p Eps q -> Op (choi p r) Eps (choi q r)
-| choiepsr: forall (p q r:Proc), Op p Eps q -> Op (choi r p) Eps (choi r q)
-| skipl: forall (p:Proc), Op (choi skip p) Eps p
-| skipr: forall (p:Proc), Op (choi p skip) Eps p
-| sync: forall (e:Event)(p q r t:Proc)(s:EvSet), Op p e q -> Op r e t -> isMember e s -> Op (par s p r) e (par s q t)
-| parl: forall (e:Event)(p q r:Proc)(s:EvSet), Op p e q -> ~(isMember e s) -> Op (par s p r) e (par s q r)
-| parr: forall (e:Event)(p q r:Proc)(s:EvSet), Op p e q -> ~(isMember e s) -> Op (par s r p) e (par s r q)
-| parskip: forall (s:EvSet), Op (par s skip skip) Eps skip
-| seql: forall (e:Event)(p q r:Proc), Op p e q -> Op (seq p r) e (seq q r)
-| seqskip: forall (p:Proc), Op (seq skip p) Eps p
+  abort:     Op stop Eps stop
+| prefok:    forall (e0 e:Event)(p:Proc), Beq_event e0 e -> Op (pref e0 p) e p
+| choil:     forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi p r) e q
+| choir:     forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi r p) e q
+| choiepsl:  forall (p q r:Proc), Op p Eps q -> Op (choi p r) Eps (choi q r)
+| choiepsr:  forall (p q r:Proc), Op p Eps q -> Op (choi r p) Eps (choi r q)
+| skipl:     forall (p:Proc), Op (choi skip p) Eps p
+| skipr:     forall (p:Proc), Op (choi p skip) Eps p
+| choistop:  Op (choi stop stop) Eps stop
+| sync:      forall (e:Event)(p q r t:Proc)(s:EvSet), Op p e q -> Op r e t -> isMember e s -> Op (par s p r) e (par s q t)
+| parl:      forall (e:Event)(p q r:Proc)(s:EvSet), Op p e q -> ~(isMember e s) -> Op (par s p r) e (par s q r)
+| parr:      forall (e:Event)(p q r:Proc)(s:EvSet), Op p e q -> ~(isMember e s) -> Op (par s r p) e (par s r q)
+| parskip:   forall (s:EvSet), Op (par s skip skip) Eps skip
+| seql:      forall (e:Event)(p q r:Proc), Op p e q -> Op (seq p r) e (seq q r)
+| seqskip:   forall (p:Proc), Op (seq skip p) Eps p
 | recursion: forall (p:Proc)(n:Name), Op (rec n p) Eps (sust (rec n p) n p)
-| idref: forall (n:Name), Op (id n) Eps (id n). (* o "p" directamente *)
+| idref:     forall (n:Name), Op (id n) Eps (id n). (* o "p" directamente *)
   
 Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
   match p, e with 
@@ -62,6 +58,7 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
   | stop, v => None
   | skip, v => None
   | pref v r, v' => if beq_event v v' then Some r else None
+  | choi stop stop, Eps => Some stop
   | choi p1 p2, Eps => match smallstep_eval p1 Eps, smallstep_eval p2 Eps with
                          None, None => None
                        | Some p3, None => Some (choi p3 p2)
@@ -102,33 +99,15 @@ Definition p : Proc := rec 0 (pref Eps (id 0)).
 Eval compute in (smallstep_eval p Eps).
 
 
-(*
-Inductive NullProc : Proc -> Prop :=
-  nullstop : NullProc stop
-| nullchoil : forall p q:Proc, NullProc q -> NullProc (choi q p)
-| nullchoir : forall p q:Proc, NullProc q -> NullProc (choi p q)
-| nullseq : forall p q:Proc, NullProc q -> NullProc (seq q p)
-| nullseq2 : forall p:Proc, NullProc p -> NullProc (seq skip p)
-| nullparl : forall (p q:Proc)(s:EvSet), NullProc q -> NullProc (par s q p)
-| nullparr : forall (p q:Proc)(s:EvSet), NullProc q -> NullProc (par s p q).
-
-Lemma sseval_nullproc: forall (e:Event)(p:Proc), NullProc p -> smallstep_eval p e = None.
-Proof.
-  intros e p H.
-  induction H;intros;simpl.
-*)
-
 Lemma iselemmember: forall (e:Event)(s:EvSet), isElem e s = true <-> isMember e s.
 Proof.
   intros.
   unfold iff;split;intro H.
-  induction s;intros;simpl.
-  inversion H.
+  induction s;intros;simpl;inversion H.
   simpl in H.
   case_eq (beq_event e0 a);intro H0.
   apply (sing e0 a s).
-  induction e0;induction a;intros;simpl; try (inversion H0).
-  
+  induction e0;induction a;intros;simpl;try (inversion H0).  
   constructor.
   rewrite (beq_nat_true i i0).
   constructor.
@@ -136,20 +115,16 @@ Proof.
   rewrite (beq_nat_true i i0).
   constructor.
   assumption.
-  apply cons.
+  apply consmem.
   rewrite H0 in H.
-  apply IHs.
-  auto.
+  apply IHs;auto.
 
   induction H;intros.
   inversion H.
   simpl;auto.
-  simpl.
-  rewrite <- (beq_nat_refl i);auto.
-  simpl.
-  rewrite <- (beq_nat_refl i);auto.
-  simpl.
-  case_eq (beq_event e0 f);intros;auto.
+  simpl;rewrite <- (beq_nat_refl i);auto.
+  simpl;rewrite <- (beq_nat_refl i);auto.
+  simpl;case_eq (beq_event e0 f);intros;auto.
 Qed.
 
 Lemma not_mem:forall (e:Event)(s:EvSet), isElem e s = false -> ~(isMember e s).
@@ -161,7 +136,7 @@ Qed.
 
 Theorem sseval_correct: forall (e:Event)(p q:Proc), smallstep_eval p e = Some q -> Op p e q.
 Proof.
-  intros e p. (* intros mal? *)
+  intros e p.
   induction p;intros. simpl.
   case_eq e;intros.
   rewrite H0 in H.
@@ -178,7 +153,13 @@ Proof.
    inversion H.
   case_eq e;intro H0.
   rewrite H0 in *.
+  (* CHOICE *)
   simpl in H.
+  case_eq p1;case_eq p2;intros;rewrite H1 in H;rewrite <- H1 in H;rewrite H2 in H.
+   (* stop, stop *)
+   inversion H;rewrite H1 in H4;rewrite <- H4; apply choistop.
+   rewrite <- H2 in *.
+   
   case_eq (smallstep_eval p1 Eps);   case_eq (smallstep_eval p2 Eps) ; intros;rewrite H1 in *;rewrite H2 in *;inversion H.   
   apply (choiepsl p1 p3 p2).
   apply (IHp1 p3).
@@ -282,10 +263,26 @@ Proof.
 Qed.
   
 CoInductive Trace : Set :=
-  nil : Trace+
-| cons : Output -> Trace -> Trace.
+  nilt : Trace
+| const : Output -> Trace -> Trace.
 
-Notation "e :: t" := (cons e t).
+Notation "e :: t" := (const e t).
+
+Definition trace_decompose (t:Trace) : Trace :=
+match t with
+  nilt => nilt 
+| const o t' => const o t'
+end.
+
+Theorem trace_dec_lemma : forall (t:Trace), t = trace_decompose t.
+Proof.
+  intros.
+  case t;trivial.
+Qed.
+Check trans_equal.
+Check trace_dec_lemma.
+
+Ltac trace_unfold term := rewrite (trace_dec_lemma term);simpl.
 
 (* Successful termination or Finite Trace *)
 CoInductive succTerm : Proc -> Prop :=
@@ -297,72 +294,98 @@ CoInductive succTerm : Proc -> Prop :=
 
 
 CoFixpoint concatt (t1 t2:Trace) : Trace := match t1 with
-  nil => t2
-| cons o t1' => cons o (concatt t1' t2)
+  nilt => t2
+| o :: t1' => o :: (concatt t1' t2)
 end.
 
 CoInductive MergeTrace : Trace -> Trace -> Trace -> Prop :=
-  mt_nil1: forall t:Trace, MergeTrace nil t t
+  mt_nil1: forall t:Trace, MergeTrace nilt t t
 | mt_cons1: forall (o:Output)(t1 t2 t3:Trace), MergeTrace t1 t2 t3 -> 
-                                               MergeTrace (cons o t1) t2 (cons o t3)
-| mt_nil2: forall t:Trace, MergeTrace t nil t
+                                               MergeTrace (o :: t1) t2 (o :: t3)
+| mt_nil2: forall t:Trace, MergeTrace t nilt t
 | mt_cons2: forall (o:Output)(t1 t2 t3:Trace), MergeTrace t1 t2 t3 -> 
-                                               MergeTrace t1 (cons o t2) (cons o t3).
-CoInductive isTrace : Trace -> Proc -> Prop :=
-  nilt : forall p:Proc, isTrace nil p (* ?? *)
-| preft : forall (t:Trace)(p:Proc)(e:Event), isTrace t p -> isTrace ((execAct e)::t) (pref e p)
-| choit1 : forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> isTrace t2 p2 -> isTrace t1 (choi p1 p2)
-| choit2 : forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> isTrace t2 p2 -> isTrace t2 (choi p1 p2)
-| seqt: forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
-| part: forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).
+                                               MergeTrace t1 (o :: t2) (o :: t3).
 
+Parameter execAct : Event -> Output.
+Parameter test : Pred -> bool.
+Parameter tick : Output.
+Parameter empty : Output.
+Parameter rand : unit -> bool. (* ?? *)
+
+CoInductive isTrace : Trace -> Proc -> Prop :=
+  skip_tick : isTrace (tick :: nilt) skip    (* ?? *)
+| nil_is_t :  forall p:Proc, isTrace nilt p (* ?? *)
+| preft :     forall (t:Trace)(p:Proc)(e:Event), isTrace t p -> isTrace ((execAct e)::t) (pref e p)
+| choit1 :    forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
+| choit2 :    forall (t:Trace)(p1 p2:Proc), isTrace t p2 -> isTrace t (choi p1 p2)
+| seqt:       forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
+| part:       forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).
 
 
 Fixpoint menu (p:Proc) : Menu := match p with
    stop => set_add Eps empty_set
  | skip => empty_set
- | pref e r => set_add e (menu r)
+ | pref (EIn i pred) q => if test pred then set_add (EIn i pred) empty_set else empty_set
+ | pref e q => set_add e empty_set
+ | choi skip q => set_add Eps (menu q)
+ | choi q skip => set_add Eps (menu q)
  | choi r q => set_union (menu r) (menu q)
  | seq skip q => set_add Eps empty_set
  | seq r q => menu r
- | par s r q => set_union (set_inter (set_inter (menu r) (menu q)) s) (set_union (set_diff (menu r) s) (set_diff (menu q) s))
+ | par s skip skip => set_add Eps empty_set
+ | par s r q => set_union (set_inter (set_inter (menu r) (menu q)) s) 
+                          (set_union (set_diff (menu r) s) (set_diff (menu q) s))
  | id n => set_add Eps empty_set
  | rec n p => set_add Eps empty_set
 end.
 
-Theorem menu_correct : forall (p:Proc)(e:Event), let m=menu p in (isElem e m -> exists p':Proc, Op p e p').
-
-Parameter tick : Output.
-Parameter empty : Output.
-Parameter rand : unit -> bool. (* ?? *)
-
-
+Theorem menu_correct : forall (p:Proc)(e:Event), isMember e (menu p) -> exists p':Proc, Op p e p'.
 
 Fixpoint choose (m:Menu) : option Event := match m with
-  none => None
-| some e none => Some e
-| some e es => if rand tt then Some e
-                            else choose es
+  nil => None
+| cons e es => match es with
+                 nil => Some e
+               | cons f fs => if rand tt then Some e
+                                         else choose es
+               end
 end.
 
 CoFixpoint eval (p:Proc) : Trace := match p with
-  stop => nil
-  skip => tick :: nil
-  q => match choose (menu q) with
-         None => nil
-       | Some (EOut id act as e) => match smallstep_eval p e with
-                                      None => execAct act :: nil
-                                      Some r => execAct act :: eval r
-                                    end
-       | Some e => empty :: match smallstep_eval p e with
-                              None => empty :: nil
-                              Some r => empty :: eval r
-                            end
+  stop => nilt
+| skip => tick :: nilt
+| q => match choose (menu q) with
+         None => nilt (* esperar que se active alguno o morir *)
+       | Some e => execAct e :: match smallstep_eval q e with
+                                  None => nilt
+                                | Some r => eval r
+                                end
        end
 end.
 
 Theorem eval_correct: forall (p:Proc), isTrace (eval p) p.
+Proof.
+  induction p0;intros;simpl.
+  trace_unfold (eval stop).
+  constructor.
+  trace_unfold (eval skip).
+  constructor.
+  trace_unfold (eval (pref e0 p0)).
+  case_eq e0;intros;simpl.
+  constructor;auto.
+  destruct (test p1);simpl.
+   rewrite <- (beq_nat_refl i).  
+   constructor;auto.
+   constructor.
 
+   rewrite <- (beq_nat_refl i).
+   constructor;auto.
 
+  trace_unfold (eval (choi p0_1 p0_2)).
 
+   case_eq p0_1;case_eq p0_2;intros;simpl.
+   constructor.
+
+Lemma tcss: forall p:Proc, eval p = empty :: (eval p) -> eval p = nilt.
+Proof.
+  trace_unfold (eval (choi stop stop)).
 

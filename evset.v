@@ -5,12 +5,6 @@ Definition IdEv : Set := nat.
 
 Definition Input : Set := bool.
 Parameter Output : Set.
-(*
-Definition Output : Set := nat.
-Parameter Pred : nat -> Input.
-Parameter Act : nat -> Output.
-*)
-
 Definition Pred : Set := nat -> Input.
 Definition Act : Set := nat -> Output.
 
@@ -22,7 +16,6 @@ Inductive Event : Set :=
 Definition EvSet := list Event.
 
 Definition empty_set : EvSet := nil.
-
 
 
 (* cual me conviene mas? dejo los dos? *)
@@ -63,7 +56,18 @@ Proof.
   assumption.
 Qed.
 
+(* ????????  *)
 Definition Aeq_dec: forall a b:Event, {a == b} + {a <> b}.
+
+
+Inductive isMember: Event -> EvSet -> Prop :=
+  sing: forall (e f:Event)(s:EvSet), Beq_event e f -> isMember e (cons f s)
+| consmem: forall (e f:Event)(s:EvSet), isMember e s -> isMember e (cons f s).
+
+Fixpoint isElem (e:Event)(s:EvSet) : bool := match s with
+  nil => false
+| cons x xs => if beq_event e x then true else isElem e xs
+end.
 
 
 Fixpoint set_add (e:Event) (x:EvSet) : EvSet :=
@@ -72,11 +76,23 @@ Fixpoint set_add (e:Event) (x:EvSet) : EvSet :=
     | cons e1 x1 => if beq_event e e1 then cons e1 x1 else cons e1 (set_add e x1)
     end.
 
-Inductive isMember: Event -> EvSet -> Prop :=
-  sing: forall (e f:Event)(s:EvSet), Beq_event e f -> isMember e (cons f s)
-| cons: forall (e f:Event)(s:EvSet), isMember e s -> isMember e (f :: s).
+Fixpoint set_inter (x:EvSet) : EvSet -> EvSet :=
+    match x with
+    | nil => fun y => nil
+    | a1 :: x1 =>
+        fun y =>
+          if isElem a1 y then a1 :: set_inter x1 y else set_inter x1 y
+    end.
 
-Fixpoint isElem (e:Event)(s:EvSet) : bool := match s with
-  nil => false
-| x :: xs => if beq_event e x then true else isElem e xs
-end.
+Fixpoint set_union (x y:EvSet) : EvSet :=
+    match y with
+    | nil => x
+    | a1 :: y1 => set_add a1 (set_union x y1)
+    end.
+
+Fixpoint set_diff (x y:EvSet) : EvSet :=
+    match x with
+    | nil => nil
+    | a1 :: x1 =>
+        if isElem a1 y then set_diff x1 y else set_add a1 (set_diff x1 y)
+    end.
