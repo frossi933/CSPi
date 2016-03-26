@@ -355,28 +355,24 @@ end.
 Theorem eval_correct: forall (p:Proc), isTrace (eval p) p.
 Proof.
   induction p0;intros;simpl.
-  trace_unfold (eval stop).
-  constructor.
-  trace_unfold (eval skip).
-  constructor.
+  trace_unfold (eval stop);constructor.
+  trace_unfold (eval skip);constructor.
   trace_unfold (eval (pref e0 p0)).
-  case_eq e0;intros;simpl.
-  constructor;auto.
-  destruct (test p1);simpl.
-   rewrite <- (beq_nat_refl i).  
-   constructor;auto.
-   constructor.
-
-   rewrite <- (beq_nat_refl i).
-   constructor;auto.
-
+   case_eq e0;intros;simpl.
+    constructor;auto.
+    destruct (test p1);simpl.
+     rewrite <- (beq_nat_refl i).  
+     constructor;auto.
+     constructor.
+    rewrite <- (beq_nat_refl i).
+    constructor;auto.
   trace_unfold (eval (choi p0_1 p0_2)).
-
-   case_eq p0_1;case_eq p0_2;intros;simpl.
+  case_eq p0_1;case_eq p0_2;intros;simpl.
    constructor.
    rewrite exec_eps.
    constructor.
    rewrite <- H0;exact IHp0_1.
+
    constructor.
 
 Lemma tcss: forall p:Proc, eval p = empty :: (eval p) -> eval p = nilt.
