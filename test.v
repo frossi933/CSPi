@@ -133,6 +133,30 @@ Proof.
   rewrite <- (iselemmember e s) in H1;rewrite H1 in H;inversion H.
 Qed.
 
+Ltac choi_lr := 
+match goal with
+  IHp1:_ , H4: smallstep_eval ?X1 ?E = Some ?X3 |- Op (choi ?X1 ?X2) ?E ?X3 => apply choil; [apply IHp1;auto | discriminate ]
+| IHp2:_ , H3: smallstep_eval ?X2 ?E = Some ?X3 |- Op (choi ?X1 ?X2) ?E ?X3 => apply choir; [apply IHp2;auto | discriminate ]
+end.
+
+Ltac par_tac := match goal with
+  IHp1:_ ,
+  IHp2:_ ,
+  h1: smallstep_eval ?X1 ?E = Some ?X3,
+  h2: smallstep_eval ?X2 ?E = Some ?X4 |- Op (par ?S ?X1 ?X2) ?E (par ?S ?X3 ?X4) => apply sync;
+                                                                                     [exact (IHp1 X3 h1) | exact (IHp2 X4 h2) | apply (iselemmember E S);auto]
+| IHp1:_ ,
+  he: isElem ?E ?S = false,
+  h1: smallstep_eval ?X1 ?E = Some ?X3 |- Op (par ?S ?X1 ?X2) ?E (par ?S ?X3 ?X2) => apply parl;
+                                                                                     [apply (IHp1 X3 h1) | exact (not_mem E S he)]
+| IHp2:_ ,
+  he: isElem ?E ?S = false,
+  h2: smallstep_eval ?X2 ?E = Some ?X4 |- Op (par ?S ?X1 ?X2) ?E (par ?S ?X1 ?X4) => apply parr;
+                                                                                     [apply (IHp2 X4 h2) | exact (not_mem E S he)]
+end.
+
+
+
 
 Theorem sseval_correct: forall (e:Event)(p q:Proc), smallstep_eval p e = Some q -> Op p e q.
 Proof.
@@ -151,62 +175,39 @@ Proof.
    rewrite <- H2.
    apply (prefok e0 e p0 (eq_event_true e0 e H0)).
    inversion H.
-  case_eq e;intro H0.
-  rewrite H0 in *.
+
   (* CHOICE *)
+  case_eq e.
+  intro H0;rewrite H0 in *.
   simpl in H.
-  case_eq p1;case_eq p2;intros;rewrite H1 in H;rewrite <- H1 in H;rewrite H2 in H.
-   (* stop, stop *)
-   inversion H;rewrite H1 in H4;rewrite <- H4; apply choistop.
-   rewrite <- H2 in *.
-   
-  case_eq (smallstep_eval p1 Eps);   case_eq (smallstep_eval p2 Eps) ; intros;rewrite H1 in *;rewrite H2 in *;inversion H.   
-  apply (choiepsl p1 p3 p2).
-  apply (IHp1 p3).
-  trivial.
-  apply (choiepsl p1 p0 p2).
-  apply (IHp1 p0).
-  trivial.
-  apply (choiepsr p2 p0 p1).
-  apply (IHp2 p0).
-  trivial.
+  case_eq p1;intros;rewrite H1 in H at 1;simpl in H;rewrite <- H1;case_eq p2;intros;try(rewrite H2 in H at 1;simpl in H);rewrite <- H2;
+  try(rewrite H1,H2;inversion H;apply choistop);  (* stop, stop *)
+  try(case_eq (smallstep_eval p1 Eps);case_eq (smallstep_eval p2 Eps);intros;rewrite H3 in *;rewrite H4 in *;inversion H;
+  try(apply (choiepsl);apply IHp1;trivial);
+  try(apply choiepsr;apply IHp2;trivial)).
 
-  intros p0 H1.
+  intros i pr H0.
   simpl in H.
-  rewrite H1 in *.
-  case_eq (smallstep_eval p1 (EIn H0 p0));case_eq (smallstep_eval p2 (EIn H0 p0));intros;rewrite H2 in *;rewrite H3 in *;inversion H.   
-  apply choil.
-  apply IHp1.
-  assumption.
-  discriminate.
-  apply choil.
-  apply IHp1.
-  assumption.
-  discriminate.
-  apply choir.
-  apply IHp2.
-  assumption.
-  discriminate.
+  rewrite H0 in *. 
+  case_eq p1;intros;rewrite H1 in H at 1;simpl in H;rewrite <- H1;case_eq p2;intros;rewrite <- H2;try(rewrite H2 in H at 1;simpl in H);
+  case_eq (smallstep_eval p1 (EIn i pr));case_eq (smallstep_eval p2 (EIn i pr));intros;rewrite H3 in *;rewrite H4 in *;inversion H;rewrite <- H6;
+  try(choi_lr).
 
-  intros a H1.
+  intros i a H0.
   simpl in H.
-  rewrite H1 in *.
-  case_eq (smallstep_eval p1 (EOut H0 a));case_eq (smallstep_eval p2 (EOut H0 a));intros;rewrite H2 in *;rewrite H3 in *;inversion H.
-  apply choil.
-  apply IHp1.
-  assumption.
-  discriminate.
-  apply choil.
-  apply IHp1.
-  assumption.
-  discriminate.
-  apply choir.
-  apply IHp2.
-  assumption.
-  discriminate.
+  rewrite H0 in *.
+  case_eq p1;intros;rewrite H1 in H at 1;simpl in H;rewrite <- H1;case_eq p2;intros;rewrite <- H2;try(rewrite H2 in H at 1;simpl in H);
+  case_eq (smallstep_eval p1 (EOut i a));case_eq (smallstep_eval p2 (EOut i a));intros;rewrite H3 in *;rewrite H4 in *;inversion H;rewrite <- H6;
+  try(choi_lr).
 
+  (* SEQ *)
   simpl in H.
-  case_eq p1;intros;rewrite H0 in *; try (rewrite <- H0 in H;case_eq (smallstep_eval p1 e);intros;rewrite H1 in *;inversion H;constructor;apply IHp1;rewrite H0 in H1;trivial;case_eq (smallstep_eval (pref e0 p0) e);intros;rewrite H1 in *;inversion H;constructor;apply IHp1;trivial).
+  case_eq p1;intros;rewrite H0 in *;
+  (* <> skip *) try (rewrite <- H0 in H;case_eq (smallstep_eval p1 e);intros;rewrite H1 in *;
+                     inversion H;constructor;apply IHp1;rewrite H0 in H1;trivial;
+                     case_eq (smallstep_eval (pref e0 p0) e);intros;rewrite H1 in *;
+                     inversion H;constructor;apply IHp1;trivial).
+  (* = skip *)
   case_eq e;intros;rewrite H1 in *.
   inversion H.
   rewrite <- H3.
@@ -216,29 +217,13 @@ Proof.
   simpl in H.
   inversion H.
 
+  (* PAR *)
   simpl in H.
   case_eq p1;[ intros H0 | intros H0 | intros e1 p0 H0 | intros p0 p3 H0 | intros p0 p3 H0 | intros e1 p0 p3 H0 | intros n H0 | intros n p0 H0];
   rewrite H0 in H;rewrite <- H0 in H;rewrite <- H0;case_eq p2;intros;rewrite H1 in H;rewrite <- H1 in H;rewrite <- H1;
   case_eq (isElem e e0);intro H2;rewrite H2 in H;case_eq(smallstep_eval p1 e);intros;rewrite H3 in H;
   inversion H;
-  case_eq (smallstep_eval p2 e);intros;try(rewrite H4 in H);inversion H;
-   try (apply sync; [exact (IHp1 p3 H3) | exact (IHp2 p4 H4) | apply (iselemmember e e0);auto ]);
-   try (apply sync; [exact (IHp1 p4 H3) | exact (IHp2 p5 H4) | apply (iselemmember e e0);auto ]);
-   try (apply sync; [exact (IHp1 p0 H3) | exact (IHp2 p3 H4) | apply (iselemmember e e0);auto ]);
-   try (apply sync; [exact (IHp1 p5 H3) | exact (IHp2 p6 H4) | apply (iselemmember e e0);auto ]);
-   try (apply sync; [exact (IHp1 p6 H3) | exact (IHp2 p7 H4) | apply (iselemmember e e0);auto ]);
-   try (apply parl; [apply (IHp1 p3 H3) | exact (not_mem e e0 H2)]);
-   try (apply parl; [apply (IHp1 p0 H3) | exact (not_mem e e0 H2)]);
-   try (apply parl; [apply (IHp1 p4 H3) | exact (not_mem e e0 H2)]);
-   try (apply parl; [apply (IHp1 p5 H3) | exact (not_mem e e0 H2)]);
-   try (apply parl; [apply (IHp1 p6 H3) | exact (not_mem e e0 H2)]);
-   try (apply parr; [apply (IHp2 p3 H4) | exact (not_mem e e0 H2)]);
-   try (apply parr; [apply (IHp2 p0 H4) | exact (not_mem e e0 H2)]);
-   try (apply parr; [apply (IHp2 p4 H4) | exact (not_mem e e0 H2)]);
-   try (apply parr; [apply (IHp2 p5 H4) | exact (not_mem e e0 H2)]);
-   try (apply parr; [apply (IHp2 p6 H4) | exact (not_mem e e0 H2)]).
-
-
+  case_eq (smallstep_eval p2 e);intros;try(rewrite H4 in H);inversion H;try(par_tac).
   (* skip,skip*)
   rewrite H0 in H3;inversion H3.
   rewrite H0 in H3;inversion H3.
@@ -252,11 +237,13 @@ Proof.
   rewrite H0,H1 in *.
   destruct e;simpl;inversion H5.
   constructor.
-  
+
+  (* ID *)  
   simpl in H.
   destruct e;simpl;inversion H.
   constructor.
  
+  (* REC *)
   simpl in H.
   destruct e;simpl;inversion H.
   constructor.
@@ -312,8 +299,11 @@ Parameter tick : Output.
 Parameter empty : Output.
 Parameter rand : unit -> bool. (* ?? *)
 
+Axiom exec_eps : execAct Eps = empty.
+
 CoInductive isTrace : Trace -> Proc -> Prop :=
   skip_tick : isTrace (tick :: nilt) skip    (* ?? *)
+| empt:       forall (t:Trace)(p:Proc), isTrace t p -> isTrace (empty :: t) p (* ?? *)
 | nil_is_t :  forall p:Proc, isTrace nilt p (* ?? *)
 | preft :     forall (t:Trace)(p:Proc)(e:Event), isTrace t p -> isTrace ((execAct e)::t) (pref e p)
 | choit1 :    forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
@@ -383,6 +373,10 @@ Proof.
   trace_unfold (eval (choi p0_1 p0_2)).
 
    case_eq p0_1;case_eq p0_2;intros;simpl.
+   constructor.
+   rewrite exec_eps.
+   constructor.
+   rewrite <- H0;exact IHp0_1.
    constructor.
 
 Lemma tcss: forall p:Proc, eval p = empty :: (eval p) -> eval p = nilt.
