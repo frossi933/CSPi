@@ -21,13 +21,17 @@ Definition empty_set : EvSet := nil.
 (* cual me conviene mas? dejo los dos? *)
 Inductive Beq_event : Event -> Event -> Prop :=
   beq_eps : Beq_event Eps Eps
-| beq_in : forall (i:IdEv)(p1 p2:Pred), Beq_event (EIn i p1)(EIn i p2)
-| beq_out : forall (i:IdEv)(a1 a2:Act), Beq_event (EOut i a1)(EOut i a2).
+| beq_inin : forall (i:IdEv)(p1 p2:Pred), Beq_event (EIn i p1)(EIn i p2)
+| beq_inout : forall (i:IdEv)(p:Pred)(a:Act), Beq_event (EIn i p)(EOut i a)
+| beq_outout : forall (i:IdEv)(a1 a2:Act), Beq_event (EOut i a1)(EOut i a2)
+| beq_outin : forall (i:IdEv)(a:Act)(p:Pred), Beq_event (EOut i a)(EIn i p).
 
 Definition beq_event (e1 e2: Event) : bool := match e1, e2 with
   Eps, Eps => true
 | EIn i1 p1 , EIn i2 p2 => beq_nat i1 i2
+| EIn i1 p1 , EOut i2 a1 => beq_nat i1 i2
 | EOut i1 a1 , EOut i2 a2 => beq_nat i1 i2
+| EOut i1 a1 , EIn i2 p1 => beq_nat i1 i2
 | _ , _ => false end.
 
 Notation "a == b" := (Beq_event a b) (at level 70, no associativity).
@@ -48,8 +52,14 @@ Proof.
   constructor.
   assumption.
   inversion H.
+  rewrite (beq_nat_true i i0).
+  constructor;auto.
+  assumption.
   inversion H.
   simpl in H.
+  rewrite (beq_nat_true i i0).
+  constructor;auto.
+  assumption.
   inversion H.
   rewrite (beq_nat_true i i0).
   constructor.

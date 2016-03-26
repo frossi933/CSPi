@@ -115,6 +115,12 @@ Proof.
   rewrite (beq_nat_true i i0).
   constructor.
   assumption.
+  rewrite (beq_nat_true i i0).
+  constructor.
+  assumption.
+  rewrite (beq_nat_true i i0).
+  constructor.
+  assumption.
   apply consmem.
   rewrite H0 in H.
   apply IHs;auto.
@@ -125,6 +131,11 @@ Proof.
   simpl;rewrite <- (beq_nat_refl i);auto.
   simpl;rewrite <- (beq_nat_refl i);auto.
   simpl;case_eq (beq_event e0 f);intros;auto.
+  simpl;rewrite <- (beq_nat_refl i);auto.
+  simpl;rewrite <- (beq_nat_refl i);auto.
+  simpl;rewrite <- (beq_nat_refl i);auto.
+  simpl.
+  destruct (beq_event e0 f);simpl;auto.
 Qed.
 
 Lemma not_mem:forall (e:Event)(s:EvSet), isElem e s = false -> ~(isMember e s).
