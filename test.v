@@ -34,7 +34,7 @@ match q with
 end.
 
 Inductive Op : Proc -> Event -> Proc -> Prop :=
-  abort:     Op stop Eps stop
+ (* abort:     Op stop Eps stop*)
 | prefok:    forall (e0 e:Event)(p:Proc), Beq_event e0 e -> Op (pref e0 p) e p
 | choil:     forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi p r) e q
 | choir:     forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi r p) e q
@@ -49,12 +49,13 @@ Inductive Op : Proc -> Event -> Proc -> Prop :=
 | parskip:   forall (s:EvSet), Op (par s skip skip) Eps skip
 | seql:      forall (e:Event)(p q r:Proc), Op p e q -> Op (seq p r) e (seq q r)
 | seqskip:   forall (p:Proc), Op (seq skip p) Eps p
+| seqstop:   forall (p:Proc), Op (seq stop p) Eps stop (* ?? *)
 | recursion: forall (p:Proc)(n:Name), Op (rec n p) Eps (sust (rec n p) n p)
 | idref:     forall (n:Name), Op (id n) Eps (id n). (* o "p" directamente *)
   
 Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
   match p, e with 
-    stop, Eps => Some stop
+(*    stop, Eps => Some stop*)
   | stop, v => None
   | skip, v => None
   | pref v r, v' => if beq_event v v' then Some r else None
@@ -74,6 +75,7 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
                      | Some p3, Some p4 => Some p3 (* hacerlo random *)
                      end
   | seq skip p, Eps => Some p
+  | seq stop p, Eps => Some stop   (* ?? *)
   | seq p1 p2, v => match smallstep_eval p1 v with
                       Some p3 => Some (seq p3 p2)
                     | None => None
@@ -168,8 +170,6 @@ Ltac par_tac := match goal with
                                                                                      [apply (IHp2 X4 h2) | exact (not_mem E S he)]
 end.
 
-
-
 Ltac choi_cases := 
 match goal with
   h1:?X1 = stop ,h2: ?X2=stop |- Op (choi ?X1 ?X2) Eps stop => rewrite h1, h2;apply choistop
@@ -238,14 +238,9 @@ Proof.
                      case_eq (smallstep_eval (pref e0 p0) e);intros;rewrite H1 in *;
                      inversion H;constructor;apply IHp1;trivial).
   (* = skip *)
-  case_eq e;intros;rewrite H1 in *.
-  inversion H.
-  rewrite <- H3.
+  case_eq e;intros;rewrite H1 in *;inversion H;constructor.
+  case_eq e;intros;rewrite H1 in *;inversion H.
   constructor.
-  simpl in H.
-  inversion H.
-  simpl in H.
-  inversion H.
 
   (* PAR *)
   simpl in H.
@@ -301,6 +296,10 @@ Check trace_dec_lemma.
 
 Ltac trace_unfold term := rewrite (trace_dec_lemma term).
 
+Ltac trace_unfold_hyp t := match goal with
+  h: context[t] |- _ => rewrite (trace_dec_lemma t) in h
+end.
+
 (* Successful termination or Finite Trace *)
 CoInductive succTerm : Proc -> Prop :=
   st_skip : succTerm skip
@@ -333,26 +332,31 @@ Axiom exec_eps : execAct Eps = empty.
 
 CoInductive isTrace : Trace -> Proc -> Prop :=
   skip_tick : isTrace (tick :: nilt) skip    (* ?? *)
-| empt:       forall (t:Trace)(p:Proc), isTrace t p -> isTrace (empty :: t) p (* ?? *)
+| empt:       forall (t:Trace)(p1 p2:Proc), Op p1 Eps p2 -> 
+                                        isTrace t p2 -> 
+                                        isTrace (empty :: t) p1 (* ?? *)
 | nil_is_t :  forall p:Proc, isTrace nilt p (* ?? *)
 | preft :     forall (t:Trace)(p:Proc)(e:Event), isTrace t p -> isTrace ((execAct e)::t) (pref e p)
 | choitl :    forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
 | choitr :    forall (t:Trace)(p1 p2:Proc), isTrace t p2 -> isTrace t (choi p1 p2)
-| choitepsl :  forall (t:Trace)(p1 p2 p3:Proc), Op p1 Eps p3 -> isTrace t (choi p1 p2) -> isTrace t (choi p3 p2)
-| choitepsr :  forall (t:Trace)(p1 p2 p3:Proc), Op p2 Eps p3 -> isTrace t (choi p1 p2) -> isTrace t (choi p1 p3)
+(*| choitepsl :  forall (t:Trace)(p1 p2 p3:Proc), Op p1 Eps p3 -> isTrace t (choi p3 p2) -> isTrace t (choi p3 p2)
+| choitepsr :  forall (t:Trace)(p1 p2 p3:Proc), Op p2 Eps p3 -> isTrace t (choi p1 p2) -> isTrace t (choi p1 p3)*)
 | seqt:       forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
 | part:       forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).
 
 
 Fixpoint menu (p:Proc) : Menu := match p with
-   stop => set_add Eps empty_set
+(*   stop => set_add Eps empty_set *)
+   stop => empty_set
  | skip => empty_set
  | pref (EIn i pred) q => if test pred then set_add (EIn i pred) empty_set else empty_set
  | pref e q => set_add e empty_set
  | choi skip q => set_add Eps (menu q)
  | choi q skip => set_add Eps (menu q)
+ | choi stop stop => set_add Eps empty_set
  | choi r q => set_union (menu r) (menu q)
  | seq skip q => set_add Eps empty_set
+ | seq stop q => set_add Eps empty_set (*??*)
  | seq r q => menu r
  | par s skip skip => set_add Eps empty_set
  | par s r q => set_union (set_inter (set_inter (menu r) (menu q)) s) 
@@ -363,7 +367,12 @@ end.
 
 Theorem menu_correct : forall (p:Proc)(e:Event), isMember e (menu p) -> exists p':Proc, Op p e p'.
 
-Fixpoint choose (m:Menu) : option Event := match m with
+Definition choose (m:Menu) : option Event := 
+match m with
+  nil => None
+| cons e es => Some e
+end.
+(*Fixpoint choose (m:Menu) : option Event := match m with
   nil => None
 | cons e es => match es with
                  nil => Some e
@@ -371,7 +380,7 @@ Fixpoint choose (m:Menu) : option Event := match m with
                                          else choose es
                end
 end.
-
+*)
 CoFixpoint eval (p:Proc) : Trace := match p with
   stop => nilt
 | skip => tick :: nilt
@@ -400,28 +409,86 @@ Proof.
     rewrite <- (beq_nat_refl i).
     constructor;auto.
   trace_unfold (eval (choi p0_1 p0_2)).
-  simpl.
-  case_eq p0_1;intros;simpl.
-  case_eq p0_2;intros;simpl.
-   constructor.
-   rewrite exec_eps.
-   constructor.
-   rewrite <- H0;exact IHp0_1.
+   unfold eval.
 
+   unfold trace_decompose.
+   case_eq (menu (choi p0_1 p0_2));intros.
+   simpl.
    constructor.
+   simpl choose.
+   cbv iota beta.
+   case_eq (smallstep_eval (choi p0_1 p0_2) e0);intros.
+   inversion H0.
+ 
+  case_eq p0_1;case_eq p0_2;intros.
+   simpl.
    rewrite exec_eps.
-   constructor.
-   rewrite <- H0;exact IHp0_1.
+   apply (empt (eval stop) (choi stop stop) stop).
+   apply choistop.
+
+   rewrite <- H1;exact IHp0_1.
+  
+   simpl.
+   rewrite exec_eps.
+   apply (empt (eval stop) (choi stop skip) stop).
+   apply skipr.
+   rewrite <- H1;exact IHp0_1.
+
+   simpl.   
+   destruct e0;simpl. (* prohibir pref Eps p0 ? *)
    
-   destruct e0;simpl.
+
+   Focus 2.
+   simpl.
+   case_eq (test p1);intros;simpl.
+   rewrite <- (beq_nat_refl i).
+   apply choitr.
+   constructor.
+   rewrite H0 in IHp0_2.
+   trace_unfold_hyp (eval (pref (EIn i p1) p0)).
+   simpl in IHp0_2.
+   rewrite H2 in IHp0_2;simpl in IHp0_2.
+   rewrite <- (beq_nat_refl i) in IHp0_2.
+   inversion IHp0_2.
+   inversion H5.
+   inversion H12.
+   assumption.
+   apply choitl;constructor.
+
+   Focus 3.
+   apply choitr.
+   unfold eval.
+   unfold trace_decompose.
+   case_eq (menu (choi stop (choi p0 p1)));intros.
+   simpl.
+   constructor.
+   simpl choose.
+   cbv iota beta.
+   case_eq (smallstep_eval (choi stop (choi p0 p1)) e0);intros.
+   inversion H2.
+   destruct p0;destruct p1;inversion H4.
+   cbv delta.
+   simpl.
+  
+   apply (preft (eval p0) p0 (EIn i p1)) in IHp0_2.
+   inversion IHp0_2.
+   exact (H p0).
+   Guarded.
+   destruct (rand tt);simpl.
+   Focus 2.
+   apply choitr.
+   constructor.
+   rewrite H0 in IHp0_2.
+   trace_unfold_hyp (eval (pref (EIn i p1) p0)).
+   simpl in IHp0_2.
+   unfold eval in IHp0_2.
+   simpl in IHp0_2.
+   inversion IHp0_2.
+   exact (H p0).
+   Guarded.
    rewrite exec_eps.
    apply empt.
    apply (H (choi stop (pref Eps p0))).
    Guarded.
    apply (choitepsl (eval (choi stop (pref Eps p0))) stop (pref Eps p0) stop).
    constructor.
-
-Lemma tcss: forall p:Proc, eval p = empty :: (eval p) -> eval p = nilt.
-Proof.
-  trace_unfold (eval (choi stop stop)).
-
