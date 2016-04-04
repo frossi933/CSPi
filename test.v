@@ -427,8 +427,14 @@ Proof.
   inversion H.
 Qed.  
 
-Axiom ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
+Inductive Redefined : Proc -> Proc -> Prop
 
+Fixpoint redefine (p:Proc) : Proc := if isElem Eps (menu p) then redefine (smallstep_eval p Eps) 
+                                                            else 
+
+Axiom ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
+Axiom t4: forall (p q:Proc)(e:Event), Op p e q -> eval p = execAct e :: (eval q).
+Axiom t5: forall p:Proc, ~(Diverge p) -> exists q
 (* 
 Theorem ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
 Proof.
@@ -485,6 +491,7 @@ then we say that p1 has the possibility to diverge.
 *)
 CoInductive Diverge : Proc -> Prop :=
   recdiv: forall n:Name, Diverge (rec n (id n))
+| prefdiv: forall (p:Proc)(e:Event), Diverge p -> Diverge (pref e p) (* ??*)
 | choildiv: forall (p q:Proc), Diverge p -> Diverge (choi p q)
 | choirdiv: forall (p q:Proc), Diverge p -> Diverge (choi q p)
 | seqdiv: forall p:Proc, Diverge p -> Diverge (seq skip p)
@@ -529,7 +536,7 @@ Proof.
 
 *)
   cofix H.
-  intro p.
+  intros p HD.
   trace_unfold (eval p).
   unfold trace_decompose.
   unfold eval.
@@ -546,8 +553,11 @@ Proof.
       case_eq (beq_event e0 e1);intros;rewrite H3 in H4;inversion H4;exact (eq_event_true e0 e1 H3).
       inversion H2.
       destruct (beq_event e0 e1);inversion H4.
-      exact (H p1).
+      cut (~Diverge p1);intro HDp1.
+      exact (H p1 HDp1).
       Guarded.
+      apply HD;rewrite H0;rewrite <- H5 in HDp1;constructor;trivial.
+      
      constructor.
     
    case_eq (menu (choi p0 p1));intros;simpl choose;cbv iota beta.
@@ -556,7 +566,20 @@ Proof.
     cut (Op (choi p0 p1) e0 p2);intros.
     inversion H3.
     apply choitl.
-    apply (ttt p0 p2 e0 (eval p2));auto.
+    rewrite <- (t4 p0 p2 e0).
+    cut (~Diverge p0);intro HDp0.
+    exact (H p0 HDp0).
+    Guarded.
+    apply HD;rewrite H0;apply choildiv;trivial.
+    trivial.
+    apply choitr.
+    rewrite <- (t4 p1 p2 e0).
+    cut (~Diverge p1);intro HDp1.
+    exact (H p1 HDp1).
+    Guarded.
+    apply HD;rewrite H0;apply choirdiv;trivial.
+    trivial.
+
     apply choitr.
     apply (ttt p1 p2 e0 (eval p2));auto.
     rewrite exec_eps.
