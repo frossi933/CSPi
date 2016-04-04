@@ -86,12 +86,25 @@ Fixpoint set_add (e:Event) (x:EvSet) : EvSet :=
     | cons e1 x1 => if beq_event e e1 then cons e1 x1 else cons e1 (set_add e x1)
     end.
 
+(* This function returns the greater event between the first parameter 
+   and its equivalent inside the set. I consider "out events" greater than "in events".
+   This helps me to select "out events" in the set intersection below because I will 
+   need them in the execution process *)
+Fixpoint getOutOf (e:Event)(s:EvSet) : Event :=
+    match e with
+    | EIn _ _ => match s with
+                   nil => e
+                 | f :: fs => if beq_event e f then f else getOutOf e fs
+                 end
+    | _ => e
+    end.
+
 Fixpoint set_inter (x:EvSet) : EvSet -> EvSet :=
     match x with
     | nil => fun y => nil
     | a1 :: x1 =>
         fun y =>
-          if isElem a1 y then a1 :: set_inter x1 y else set_inter x1 y
+          if isElem a1 y then (getOutOf a1 y) :: set_inter x1 y else set_inter x1 y
     end.
 
 Fixpoint set_union (x y:EvSet) : EvSet :=

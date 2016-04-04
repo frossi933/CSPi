@@ -329,21 +329,25 @@ Parameter empty : Output.
 Parameter rand : unit -> bool. (* ?? *)
 
 Axiom exec_eps : execAct Eps = empty.
+Axiom exec_ein : forall (i:IdEv)(pr:Pred), execAct (EIn i pr) = empty.
+Axiom exec_eout : forall (i:IdEv)(f:Act), execAct (EOut i f) <> empty.
 
 CoInductive isTrace : Trace -> Proc -> Prop :=
   skip_tick : isTrace (tick :: nilt) skip    (* ?? *)
 | empt:       forall (t:Trace)(p1 p2:Proc), Op p1 Eps p2 -> 
                                         isTrace t p2 -> 
                                         isTrace (empty :: t) p1 (* ?? *)
-| nil_is_t :  forall p:Proc, isTrace nilt p (* ?? *)
-| preft :     forall (t:Trace)(p:Proc)(e:Event), isTrace t p -> isTrace ((execAct e)::t) (pref e p)
-| choitl :    forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
-| choitr :    forall (t:Trace)(p1 p2:Proc), isTrace t p2 -> isTrace t (choi p1 p2)
+| nil_is_t: forall p:Proc, isTrace nilt p (* ?? *)
+| preft :   forall (t:Trace)(p:Proc)(e1 e2:Event), Beq_event e2 e1 -> isTrace t p -> isTrace ((execAct e1)::t) (pref e2 p)
+| choitl :  forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
+| choitr :  forall (t:Trace)(p1 p2:Proc), isTrace t p2 -> isTrace t (choi p1 p2)
 (*| choitepsl :  forall (t:Trace)(p1 p2 p3:Proc), Op p1 Eps p3 -> isTrace t (choi p3 p2) -> isTrace t (choi p3 p2)
 | choitepsr :  forall (t:Trace)(p1 p2 p3:Proc), Op p2 Eps p3 -> isTrace t (choi p1 p2) -> isTrace t (choi p1 p3)*)
-| seqt:       forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
-| part:       forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).
-
+| seqt:     forall (t:Trace)(p1 p2 p3:Proc)(e:Event), isTrace t (seq p1 p2) -> Op p3 e p1 -> isTrace ((execAct e) :: t) (seq p3 p2)
+(*| seqt:       forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
+| part:       forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).*)
+| parsynct: forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3 p4:Proc),
+                   isMember e s -> Op p3 e p1 -> Op p4 e p2 -> isTrace t (par s p1 p2) -> isTrace (execAct e :: t) (par s p3 p4).
 
 Fixpoint menu (p:Proc) : Menu := match p with
 (*   stop => set_add Eps empty_set *)
@@ -365,7 +369,13 @@ Fixpoint menu (p:Proc) : Menu := match p with
  | rec n p => set_add Eps empty_set
 end.
 
-Theorem menu_correct : forall (p:Proc)(e:Event), isMember e (menu p) -> exists p':Proc, Op p e p'.
+Theorem menu_correct : forall (p:Proc)(e:Event), isMember e (menu p) -> exists q:Proc, smallstep_eval p e = Some q.
+Proof.
+  intros p e H.
+  induction p;intros;simpl;inversion H.
+  destruct e0.
+   inversion H0.
+   rewrite <- H4.
 
 Definition choose (m:Menu) : option Event := 
 match m with
@@ -381,21 +391,198 @@ end.
                end
 end.
 *)
+
+Theorem menu_correct2: forall (p:Proc)(e:Event), choose (menu p) = Some e -> 
+                                                exists q:Proc, smallstep_eval p e = Some q.
+
 CoFixpoint eval (p:Proc) : Trace := match p with
   stop => nilt
 | skip => tick :: nilt
 | q => match choose (menu q) with
          None => nilt (* esperar que se active alguno o morir *)
-       | Some e => execAct e :: match smallstep_eval q e with
-                                  None => nilt
-                                | Some r => eval r
-                                end
+       | Some e => match smallstep_eval q e with
+                     None => nilt (* no deberia entrar nunca aca *)
+                   | Some r => execAct e :: (eval r)
+                   end
        end
 end.
 
-Theorem eval_correct: forall (p:Proc), isTrace (eval p) p.
+
+(* Assuming "isTrace t p" and using preft clause from isTrace definition, it is possible to prove that:
+     isTrace (execAct (EOut i f) :: t) (pref (EIn i pr) p)
+   But that is not correct. Thus, the following lemma proves it is impossible to obtain that
+   as a result of eval function.
+*)
+Lemma l1: forall (p:Proc)(i:IdEv)(pr:Pred)(f:Act), eval (pref (EIn i pr) p) <> (execAct (EOut i f) :: (eval p)).
 Proof.
+  intros.
+  trace_unfold (eval (pref (EIn i pr) p0));simpl.
+  destruct (test pr);simpl.
+  rewrite <- (beq_nat_refl i).  
+  unfold not;intro H.
+  inversion H.
+  rewrite (exec_ein i pr) in H1.
+  elim (exec_eout i f);auto.
+  unfold not;intro H.
+  inversion H.
+Qed.  
+
+Axiom ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
+
+(* 
+Theorem ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
+Proof.
+  intros.
+  induction p0;intros;simpl;inversion H.
+  apply preft;auto.
+  apply choitl.
+   apply IHp0_1;trivial.
+  apply choitr.
+   apply IHp0_2;trivial.
+  rewrite exec_eps. 
+  apply (empt t (choi p0_1 p0_2) q).
+   rewrite H2;assumption.
+   assumption.
+  rewrite exec_eps. 
+  apply (empt t (choi p0_1 p0_2) q).
+   rewrite H2;assumption.
+   assumption.
+  rewrite exec_eps. 
+  apply (empt t (choi skip q) q).
+   rewrite H1,H2,<-H4 at 1. assumption.
+   assumption.
+  rewrite exec_eps. 
+  apply (empt t (choi q skip) q).
+   rewrite H1,H3,<-H4 at 1. assumption.
+   assumption.
+  rewrite exec_eps. 
+  apply (empt t (choi stop stop) q).
+   rewrite H1,H2 at 1; rewrite H3; assumption.
+   assumption.
+  apply (seqt t q0 p0_2 p0_1 e0).
+   rewrite H4;assumption.
+   assumption.
+  rewrite exec_eps. 
+  apply (empt t (seq skip q) q).
+   rewrite H1,H2,<-H4 at 1; assumption.
+   assumption.
+  rewrite exec_eps. 
+  apply (empt t (seq stop p0_2) stop).
+   rewrite H1,H2 at 1; rewrite H4 at 1; assumption.
+   rewrite H4;assumption.
+  apply (parsynct t e0 e1 q0 t0 p0_1 p0_2);auto.
+   rewrite H6;trivial.
+ ... *)
+
+
+Print p.
+Eval compute in smallstep_eval p Eps.
+
+
+
+(* If there is a sequence of processes {Pi}i~N with Po =p1 and Op Pi Eps Pi+1 
+then we say that p1 has the possibility to diverge.
+*)
+CoInductive Diverge : Proc -> Prop :=
+  recdiv: forall n:Name, Diverge (rec n (id n))
+| choildiv: forall (p q:Proc), Diverge p -> Diverge (choi p q)
+| choirdiv: forall (p q:Proc), Diverge p -> Diverge (choi q p)
+| seqdiv: forall p:Proc, Diverge p -> Diverge (seq skip p)
+| parldiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s p q)
+| parrdiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s q p).
+
+Axiom aaa : forall (p0 p1:Proc)(e0:Event)(l:list Event), menu (choi p0 p1) = (cons e0 l) -> isMember e0 (menu p0).
+  
+
+Theorem eval_correct: forall (p:Proc), ~(Diverge p) -> isTrace (eval p) p.
+Proof.
+(*  cofix H.
+  induction p0;intros.
+  trace_unfold (eval stop);constructor.
+  trace_unfold (eval skip);constructor.
+  trace_unfold (eval (pref e0 p0)).
+  unfold trace_decompose.
+
+  unfold eval.
+  case_eq (menu (pref e0 p0));intros;simpl choose;cbv iota beta.
+   constructor.   
+    case_eq (smallstep_eval (pref e0 p0) e1);intros;cbv iota beta.
+    fold eval.
+    apply (ttt (pref e0 p0) p1 e1 (eval p1)).
+     apply sseval_correct;trivial.
+     inversion H1.
+      destruct (beq_event e0 e1);inversion H3.
+      rewrite <- H4.
+      exact IHp0.
+    constructor.
+
+  trace_unfold (eval (choi p0_1 p0_2)).
+  unfold trace_decompose.
+  unfold eval.
+  case_eq (menu (choi p0_1 p0_2));intros;simpl choose;cbv iota beta.
+   constructor.
+   case_eq (smallstep_eval (choi p0_1 p0_2) e0);intros;cbv iota beta.
+   fold eval.
+   apply (ttt (choi p0_1 p0_2) p0 e0 (eval p0)).
+    apply sseval_correct;trivial.
+    inversion H1.
+
+*)
   cofix H.
+  intro p.
+  trace_unfold (eval p).
+  unfold trace_decompose.
+  unfold eval.
+  cbv iota beta.
+  fold eval.
+  case_eq p;intros.
+   constructor.
+   constructor.
+   case_eq (menu (pref e0 p0));intros;simpl choose;cbv iota beta.
+    constructor.
+    case_eq (smallstep_eval (pref e0 p0) e1);intros;cbv iota beta.
+     constructor.
+      inversion H2.
+      case_eq (beq_event e0 e1);intros;rewrite H3 in H4;inversion H4;exact (eq_event_true e0 e1 H3).
+      inversion H2.
+      destruct (beq_event e0 e1);inversion H4.
+      exact (H p1).
+      Guarded.
+     constructor.
+    
+   case_eq (menu (choi p0 p1));intros;simpl choose;cbv iota beta.
+    constructor.
+    case_eq (smallstep_eval (choi p0 p1) e0);intros;cbv iota beta.
+    cut (Op (choi p0 p1) e0 p2);intros.
+    inversion H3.
+    apply choitl.
+    apply (ttt p0 p2 e0 (eval p2));auto.
+    apply choitr.
+    apply (ttt p1 p2 e0 (eval p2));auto.
+    rewrite exec_eps.
+    rewrite <- H5 in H3.
+    rewrite H7.
+    apply (empt (eval p2) (choi p0 p1) p2 H3).
+    exact (H p2).
+    Guarded.
+
+
+    cut (isMember e0 (menu p0));intros.
+
+ (aaa p0 p1 e0 l H1).
+
+     
+     
+    apply (ttt p p1 e1 (eval p1)).
+     apply sseval_correct;trivial.
+    
+     rewrite H0 in H2;inversion H2.
+     destruct (beq_event e0 e1);inversion H4.
+     rewrite <- H5.
+     exact (H p1).
+     Guarded.
+   
+
   induction p0;intros;simpl.
   trace_unfold (eval stop);constructor.
   trace_unfold (eval skip);constructor.
@@ -410,7 +597,6 @@ Proof.
     constructor;auto.
   trace_unfold (eval (choi p0_1 p0_2)).
    unfold eval.
-
    unfold trace_decompose.
    case_eq (menu (choi p0_1 p0_2));intros.
    simpl.
@@ -420,6 +606,18 @@ Proof.
    case_eq (smallstep_eval (choi p0_1 p0_2) e0);intros.
    inversion H0.
  
+Axiom aa: forall (e:Event)(t:Trace)(p1 p2:Proc), smallstep_eval p1 e = Some p2 -> isTrace t p2 -> isTrace (execAct e :: t) p1.
+  
+  fold eval.
+  apply (aa e0 (eval p0) (choi p0_1 p0_2) p0).
+  assumption.
+  Guarded.
+  exact (H p0).
+  Guarded.  
+
+  case_eq t;intros.
+   constructor.
+
   case_eq p0_1;case_eq p0_2;intros.
    simpl.
    rewrite exec_eps.
@@ -492,3 +690,16 @@ Proof.
    Guarded.
    apply (choitepsl (eval (choi stop (pref Eps p0))) stop (pref Eps p0) stop).
    constructor.
+
+(* Notes:
+
+- S = (EOut e f) -> P || (EOut e f) -> Q 
+    eval S = exec f :: eval S'
+    S' = smallstep_eval e S = P || Q
+
+  'f' function associated to the 'e' event will be executed just once. But both sides 
+  will consume the event
+
+- Each event must have associated one function at most.
+
+*)
