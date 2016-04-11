@@ -17,10 +17,11 @@ Inductive Proc : Type :=
 | choi : Proc -> Proc -> Proc
 | seq :  Proc -> Proc -> Proc
 | par :  EvSet -> Proc -> Proc -> Proc
-| id : Name -> Proc
-| rec : Name -> Proc -> Proc.
+| id : Name -> Proc.
 
+Parameter Env: Name -> Proc.
 
+(*
 Fixpoint sust (p:Proc)(n:Name)(q:Proc) : Proc :=
 match q with
   stop => stop
@@ -30,9 +31,8 @@ match q with
 | seq p1 p2 => seq (sust p n p1) (sust p n p2)
 | par s p1 p2 => par s (sust p n p1) (sust p n p2)
 | id m => if beq_nat n m then p else id m
-| rec m r => rec m r (* ?? *)
 end.
-
+*)
 Inductive Op : Proc -> Event -> Proc -> Prop :=
  (* abort:     Op stop Eps stop*)
 | prefok:    forall (e0 e:Event)(p:Proc), Beq_event e0 e -> Op (pref e0 p) e p
@@ -50,8 +50,7 @@ Inductive Op : Proc -> Event -> Proc -> Prop :=
 | seql:      forall (e:Event)(p q r:Proc), Op p e q -> Op (seq p r) e (seq q r)
 | seqskip:   forall (p:Proc), Op (seq skip p) Eps p
 | seqstop:   forall (p:Proc), Op (seq stop p) Eps stop (* ?? *)
-| recursion: forall (p:Proc)(n:Name), Op (rec n p) Eps (sust (rec n p) n p)
-| idref:     forall (n:Name), Op (id n) Eps (id n). (* o "p" directamente *)
+| idref:     forall (n:Name), Op (id n) Eps (Env n).
   
 Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
   match p, e with 
@@ -90,8 +89,7 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
                                          | None, Some p4 => Some (par s p1 p4)
                                          | _, _ => None
                                          end
-  | rec n p, Eps => (* chequear n *)Some (sust (rec n p) n p)
-  | id n, Eps => Some (id n) (* ?? *)
+  | id n, Eps => Some (Env n) (* ?? *)
   | p , v => None
   end.
 
@@ -99,7 +97,7 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
 (* Ejemplo de eval simple *)
 Parameter pred:Pred.
 Definition ee:Event := EIn 1 pred.
-Definition pp : Proc := rec 0 (pref Eps (id 0)).
+Definition pp : Proc := (pref Eps (id 0)).
 Eval compute in (smallstep_eval pp Eps).
 
 
@@ -244,7 +242,7 @@ Proof.
 
   (* PAR *)
   simpl in H.
-  case_eq p1;[ intros H0 | intros H0 | intros e1 p0 H0 | intros p0 p3 H0 | intros p0 p3 H0 | intros e1 p0 p3 H0 | intros n H0 | intros n p0 H0];
+  case_eq p1;[ intros H0 | intros H0 | intros e1 p0 H0 | intros p0 p3 H0 | intros p0 p3 H0 | intros e1 p0 p3 H0 | intros n H0];
   rewrite H0 in H;rewrite <- H0 in H;rewrite <- H0;case_eq p2;intros;rewrite H1 in H;rewrite <- H1 in H;rewrite <- H1;
   case_eq (isElem e e0);intro H2;rewrite H2 in H;case_eq(smallstep_eval p1 e);intros;rewrite H3 in H;
   inversion H;
@@ -264,11 +262,6 @@ Proof.
   constructor.
 
   (* ID *)  
-  simpl in H.
-  destruct e;simpl;inversion H.
-  constructor.
- 
-  (* REC *)
   simpl in H.
   destruct e;simpl;inversion H.
   constructor.
@@ -333,21 +326,20 @@ Axiom exec_ein : forall (i:IdEv)(pr:Pred), execAct (EIn i pr) = empty.
 Axiom exec_eout : forall (i:IdEv)(f:Act), execAct (EOut i f) <> empty.
 
 CoInductive isTrace : Trace -> Proc -> Prop :=
-  skip_tick : isTrace (tick :: nilt) skip    (* ?? *)
+  skip_tick : isTrace (tick :: nilt) skip
 | empt:       forall (t:Trace)(p1 p2:Proc), Op p1 Eps p2 -> 
                                         isTrace t p2 -> 
-                                        isTrace (empty :: t) p1 (* ?? *)
-| nil_is_t: forall p:Proc, isTrace nilt p (* ?? *)
+                                        isTrace (empty :: t) p1
+| nil_is_t: forall p:Proc, isTrace nilt p
 | preft :   forall (t:Trace)(p:Proc)(e1 e2:Event), Beq_event e2 e1 -> isTrace t p -> isTrace ((execAct e1)::t) (pref e2 p)
 | choitl :  forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
 | choitr :  forall (t:Trace)(p1 p2:Proc), isTrace t p2 -> isTrace t (choi p1 p2)
-(*| choitepsl :  forall (t:Trace)(p1 p2 p3:Proc), Op p1 Eps p3 -> isTrace t (choi p3 p2) -> isTrace t (choi p3 p2)
-| choitepsr :  forall (t:Trace)(p1 p2 p3:Proc), Op p2 Eps p3 -> isTrace t (choi p1 p2) -> isTrace t (choi p1 p3)*)
 | seqt:     forall (t:Trace)(p1 p2 p3:Proc)(e:Event), isTrace t (seq p1 p2) -> Op p3 e p1 -> isTrace ((execAct e) :: t) (seq p3 p2)
-(*| seqt:       forall (t1 t2:Trace)(p1 p2:Proc), isTrace t1 p1 -> succTerm p1 -> isTrace t2 p2 -> isTrace (concatt t1 t2) (seq p1 p2)
-| part:       forall (t1 t2 t3:Trace)(p1 p2:Proc)(s:EvSet), isTrace t1 p1 -> isTrace t2 p2 -> MergeTrace t1 t2 t3 -> isTrace t3 (par s p1 p2).*)
 | parsynct: forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3 p4:Proc),
-                   isMember e s -> Op p3 e p1 -> Op p4 e p2 -> isTrace t (par s p1 p2) -> isTrace (execAct e :: t) (par s p3 p4).
+                   isMember e s -> Op p3 e p1 -> Op p4 e p2 -> isTrace t (par s p1 p2) -> isTrace (execAct e :: t) (par s p3 p4)
+| parlt:    forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3:Proc), ~isMember e s -> Op p3 e p1 -> isTrace t (par s p1 p2) -> isTrace (execAct e :: t) (par s p3 p2)
+| parrt:    forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3:Proc), ~isMember e s -> Op p3 e p2 -> isTrace t (par s p1 p2) -> isTrace (execAct e :: t) (par s p1 p3).
+
 
 Fixpoint menu (p:Proc) : Menu := match p with
 (*   stop => set_add Eps empty_set *)
@@ -366,7 +358,6 @@ Fixpoint menu (p:Proc) : Menu := match p with
  | par s r q => set_union (set_inter (set_inter (menu r) (menu q)) s) 
                           (set_union (set_diff (menu r) s) (set_diff (menu q) s))
  | id n => set_add Eps empty_set
- | rec n p => set_add Eps empty_set
 end.
 
 Theorem menu_correct : forall (p:Proc)(e:Event), isMember e (menu p) -> exists q:Proc, smallstep_eval p e = Some q.
@@ -432,15 +423,15 @@ Qed.
 then we say that p1 has the possibility to diverge.
 *)
 CoInductive Diverge : Proc -> Prop :=
-  loopdiv: forall n:Name, Diverge (rec n (id n))
+  lockdiv: forall n:Name, Env n = (id n) -> Diverge (id n)
+| loopdiv: forall n:Name, Diverge (Env n) -> Diverge (id n)
 | prefdiv: forall (p:Proc)(e:Event), Diverge p -> Diverge (pref e p) (* ??*)
 | choildiv: forall p q:Proc, Diverge p -> Diverge (choi p q)
 | choirdiv: forall p q:Proc, Diverge p -> Diverge (choi q p)
 | seqldiv: forall p q:Proc, Diverge p -> Diverge (seq p q)
 | seqdiv: forall p q:Proc, Diverge q -> Diverge (seq p q)
 | parldiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s p q)
-| parrdiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s q p)
-| recdiv: forall (n:Name)(p:Proc), Diverge p -> Diverge (rec n p).
+| parrdiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s q p).
 
 Axiom ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
 Axiom t4: forall (p q:Proc)(e:Event), Op p e q -> eval p = execAct e :: (eval q).
@@ -670,9 +661,88 @@ Proof.
    apply parldiv;trivial.
    apply parrdiv;exact (IHp2 q0 e0 H6 H9).
   rewrite <- H5 in H0;inversion H0.
-  rewrite <- H3 in H0;inversion H0.
+  apply loopdiv.
+  rewrite H3;trivial.
+Qed.
 
+  exact (div_pred p0 q e H8 H11).
+  apply HD.
+   rewrite H0.
+   apply seqdiv;trivial.
+  trivial.
+  rewrite exec_eps.
+  apply (empt (eval p2) (seq skip p2) p2).
+  constructor.
+  cut (~Diverge p2);intro HND.
+  exact (H p2 HND).
+  Guarded.
+  apply HD.
+  rewrite H0;rewrite <- H7 in HND;apply seqdiv;trivial.
+  rewrite exec_eps.
+  apply (empt (eval stop) (seq stop p1) stop).
+  constructor.
+  cut (~Diverge stop);intro HND.
+  exact (H stop HND).
+  Guarded.
+  inversion HND.
 
+  exact (sseval_correct e (seq p0 p1) p2 H2).
+  
+  constructor.
+
+  (* Par *)
+  case_eq (menu (par e p0 p1));intros;simpl choose;cbv iota beta.
+   constructor.
+   case_eq (smallstep_eval (par e p0 p1) e0);intros;simpl.
+   cut (Op (par e p0 p1) e0 p2);intros.
+   inversion H3.
+   apply (parsynct (eval (par e q t)) e0 e q t p0 p1);auto.
+    cut (~Diverge (par e q t));intro HND.
+    exact (H (par e q t) HND).
+    Guarded.
+    apply HD;rewrite H0.
+    inversion HND.
+    apply parldiv.
+    exact (div_pred p0 q e0 H7 H13).
+    apply parrdiv.
+    exact (div_pred p1 t e0 H10 H13).
+    apply (parlt (eval (par e q p1)) e0 e q p1 p0);auto.
+    cut (~Diverge (par e q p1));intro HND.
+    exact (H (par e q p1) HND).
+    Guarded.
+    apply HD.
+    rewrite H0.
+    inversion HND.
+    apply parldiv;exact (div_pred p0 q e0 H9 H12).
+    apply parrdiv;trivial.
+    apply (parrt (eval (par e p0 q)) e0 e p0 q p1);auto.
+    cut (~Diverge (par e p0 q));intro HND.
+    exact (H (par e p0 q) HND).
+    Guarded.
+    apply HD.
+    rewrite H0.
+    inversion HND.
+    apply parldiv;trivial.
+    apply parrdiv;exact (div_pred p1 q e0 H9 H12).
+   rewrite exec_eps.
+   apply (empt (eval skip) (par e skip skip) skip).
+   rewrite H4, H6, H7, H8 at 1;trivial.
+   trace_unfold (eval skip);simpl;constructor.
+  exact (sseval_correct e0 (par e p0 p1) p2 H2).
+  constructor.
+
+  (* Id *)
+  simpl.
+  unfold menu.
+  rewrite  exec_eps.
+  apply (empt (eval (Env n)) (id n) (Env n)).
+  constructor.
+  cut (~Diverge (Env n));intro HND.
+  exact (H (Env n) HND).
+  apply HD.
+  rewrite H0.
+  apply loopdiv;trivial.
+Qed.
 
 (* ....................................... *)
 
