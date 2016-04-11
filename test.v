@@ -66,13 +66,13 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
                          None, None => None
                        | Some p3, None => Some (choi p3 p2)
                        | None, Some p4 => Some (choi p1 p4)
-                       | Some p3, Some p4 => Some (choi p3 p2) (* hacerlo random *)
+                       | Some p3, Some p4 => Some (choi p3 p2) (* TODO: random *)
                        end
   | choi p1 p2, v => match smallstep_eval p1 v, smallstep_eval p2 v with
                        None, None => None
                      | Some p3, None => Some p3
                      | None, Some p4 => Some p4
-                     | Some p3, Some p4 => Some p3 (* hacerlo random *)
+                     | Some p3, Some p4 => Some p3 (* TODO: random *)
                      end
   | seq skip p, Eps => Some p
   | seq stop p, Eps => Some stop   (* ?? *)
@@ -98,20 +98,20 @@ Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
 
 (* Ejemplo de eval simple *)
 Parameter pred:Pred.
-Definition e:Event := EIn 1 pred.
-Definition p : Proc := rec 0 (pref Eps (id 0)).
-Eval compute in (smallstep_eval p Eps).
+Definition ee:Event := EIn 1 pred.
+Definition pp : Proc := rec 0 (pref Eps (id 0)).
+Eval compute in (smallstep_eval pp Eps).
 
 
 Lemma iselemmember: forall (e:Event)(s:EvSet), isElem e s = true <-> isMember e s.
 Proof.
-  intros.
+  intros e s.
   unfold iff;split;intro H.
   induction s;intros;simpl;inversion H.
   simpl in H.
-  case_eq (beq_event e0 a);intro H0.
-  apply (sing e0 a s).
-  induction e0;induction a;intros;simpl;try (inversion H0).  
+  case_eq (beq_event e a);intro H0.
+  apply (sing e a s).
+  induction e;induction a;intros;simpl;try (inversion H0).  
   constructor.
   rewrite (beq_nat_true i i0).
   constructor.
@@ -134,12 +134,12 @@ Proof.
   simpl;auto.
   simpl;rewrite <- (beq_nat_refl i);auto.
   simpl;rewrite <- (beq_nat_refl i);auto.
-  simpl;case_eq (beq_event e0 f);intros;auto.
+  simpl;case_eq (beq_event e f);intros;auto.
   simpl;rewrite <- (beq_nat_refl i);auto.
   simpl;rewrite <- (beq_nat_refl i);auto.
   simpl;rewrite <- (beq_nat_refl i);auto.
   simpl.
-  destruct (beq_event e0 f);simpl;auto.
+  destruct (beq_event e f);simpl;auto.
 Qed.
 
 Lemma not_mem:forall (e:Event)(s:EvSet), isElem e s = false -> ~(isMember e s).
@@ -205,7 +205,7 @@ Proof.
   case_eq (beq_event e0 e);intro H0; unfold smallstep_eval in H;rewrite H0 in H.
    inversion H.
    rewrite <- H2.
-   apply (prefok e0 e p0 (eq_event_true e0 e H0)).
+   apply (prefok e0 e p (eq_event_true e0 e H0)).
    inversion H.
 
   (* CHOICE *)
@@ -415,8 +415,8 @@ end.
 *)
 Lemma l1: forall (p:Proc)(i:IdEv)(pr:Pred)(f:Act), eval (pref (EIn i pr) p) <> (execAct (EOut i f) :: (eval p)).
 Proof.
-  intros.
-  trace_unfold (eval (pref (EIn i pr) p0));simpl.
+  intros p i pr f.
+  trace_unfold (eval (pref (EIn i pr) p));simpl.
   destruct (test pr);simpl.
   rewrite <- (beq_nat_refl i).  
   unfold not;intro H.
@@ -427,15 +427,27 @@ Proof.
   inversion H.
 Qed.  
 
-Inductive Redefined : Proc -> Proc -> Prop
 
-Fixpoint redefine (p:Proc) : Proc := if isElem Eps (menu p) then redefine (smallstep_eval p Eps) 
-                                                            else 
+(* If there is a sequence of processes {Pi}i~N with Po =p1 and Op Pi Eps Pi+1 
+then we say that p1 has the possibility to diverge.
+*)
+CoInductive Diverge : Proc -> Prop :=
+  loopdiv: forall n:Name, Diverge (rec n (id n))
+| prefdiv: forall (p:Proc)(e:Event), Diverge p -> Diverge (pref e p) (* ??*)
+| choildiv: forall p q:Proc, Diverge p -> Diverge (choi p q)
+| choirdiv: forall p q:Proc, Diverge p -> Diverge (choi q p)
+| seqldiv: forall p q:Proc, Diverge p -> Diverge (seq p q)
+| seqdiv: forall p q:Proc, Diverge q -> Diverge (seq p q)
+| parldiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s p q)
+| parrdiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s q p)
+| recdiv: forall (n:Name)(p:Proc), Diverge p -> Diverge (rec n p).
 
 Axiom ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
 Axiom t4: forall (p q:Proc)(e:Event), Op p e q -> eval p = execAct e :: (eval q).
-Axiom t5: forall p:Proc, ~(Diverge p) -> exists q
+
+Axiom t5: forall p0 p1:Proc, ~(Diverge (choi p0 p1)) -> isTrace (eval (choi p0 p1)) p0 \/ isTrace (eval (choi p0 p1)) p1.
 (* 
+
 Theorem ttt: forall (p q:Proc)(e:Event)(t:Trace), Op p e q -> isTrace t q -> isTrace (execAct e :: t) p.
 Proof.
   intros.
@@ -480,23 +492,6 @@ Proof.
    rewrite H6;trivial.
  ... *)
 
-
-Print p.
-Eval compute in smallstep_eval p Eps.
-
-
-
-(* If there is a sequence of processes {Pi}i~N with Po =p1 and Op Pi Eps Pi+1 
-then we say that p1 has the possibility to diverge.
-*)
-CoInductive Diverge : Proc -> Prop :=
-  recdiv: forall n:Name, Diverge (rec n (id n))
-| prefdiv: forall (p:Proc)(e:Event), Diverge p -> Diverge (pref e p) (* ??*)
-| choildiv: forall (p q:Proc), Diverge p -> Diverge (choi p q)
-| choirdiv: forall (p q:Proc), Diverge p -> Diverge (choi q p)
-| seqdiv: forall p:Proc, Diverge p -> Diverge (seq skip p)
-| parldiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s p q)
-| parrdiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s q p).
 
 Axiom aaa : forall (p0 p1:Proc)(e0:Event)(l:list Event), menu (choi p0 p1) = (cons e0 l) -> isMember e0 (menu p0).
   
@@ -545,14 +540,14 @@ Proof.
   case_eq p;intros.
    constructor.
    constructor.
-   case_eq (menu (pref e0 p0));intros;simpl choose;cbv iota beta.
+   case_eq (menu (pref e p0));intros;simpl choose;cbv iota beta.
     constructor.
-    case_eq (smallstep_eval (pref e0 p0) e1);intros;cbv iota beta.
+    case_eq (smallstep_eval (pref e p0) e0);intros;cbv iota beta.
      constructor.
       inversion H2.
-      case_eq (beq_event e0 e1);intros;rewrite H3 in H4;inversion H4;exact (eq_event_true e0 e1 H3).
+      case_eq (beq_event e e0);intros;rewrite H3 in H4;inversion H4;exact (eq_event_true e e0 H3).
       inversion H2.
-      destruct (beq_event e0 e1);inversion H4.
+      destruct (beq_event e e0);inversion H4.
       cut (~Diverge p1);intro HDp1.
       exact (H p1 HDp1).
       Guarded.
@@ -562,49 +557,124 @@ Proof.
     
    case_eq (menu (choi p0 p1));intros;simpl choose;cbv iota beta.
     constructor.
-    case_eq (smallstep_eval (choi p0 p1) e0);intros;cbv iota beta.
-    cut (Op (choi p0 p1) e0 p2);intros.
+    case_eq (smallstep_eval (choi p0 p1) e);intros;cbv iota beta.
+    cut (Op (choi p0 p1) e p2);intros.
     inversion H3.
     apply choitl.
-    rewrite <- (t4 p0 p2 e0).
+    rewrite <- (t4 p0 p2 e).
     cut (~Diverge p0);intro HDp0.
     exact (H p0 HDp0).
     Guarded.
     apply HD;rewrite H0;apply choildiv;trivial.
     trivial.
     apply choitr.
-    rewrite <- (t4 p1 p2 e0).
+    rewrite <- (t4 p1 p2 e).
     cut (~Diverge p1);intro HDp1.
     exact (H p1 HDp1).
     Guarded.
     apply HD;rewrite H0;apply choirdiv;trivial.
     trivial.
 
-    apply choitr.
-    apply (ttt p1 p2 e0 (eval p2));auto.
+    cut(execAct Eps :: eval (choi q p1) = eval (choi p0 p1));intros.
+    rewrite H9.
+    rewrite H0 in HD.
+    elim (t5 p0 p1 HD);intros.
+    apply choitl;trivial.
+    apply choitr;trivial.
+    trace_unfold (eval (choi p0 p1));unfold trace_decompose;unfold eval. 
+    rewrite H1;simpl choose;cbv iota beta;rewrite H2;cbv iota beta.
+    rewrite H5,H7; reflexivity.
+
+    cut(execAct Eps :: eval (choi p0 q) = eval (choi p0 p1));intros.
+    rewrite H9.
+    rewrite H0 in HD.
+    elim (t5 p0 p1 HD);intros.
+    apply choitl;trivial.
+    apply choitr;trivial.
+    trace_unfold (eval (choi p0 p1));unfold trace_decompose;unfold eval. 
+    rewrite H1;simpl choose;cbv iota beta;rewrite H2;cbv iota beta.
+    rewrite H5,H7; reflexivity.
+
     rewrite exec_eps.
-    rewrite <- H5 in H3.
-    rewrite H7.
-    apply (empt (eval p2) (choi p0 p1) p2 H3).
-    exact (H p2).
+    rewrite <- H5,H7,<-H4 in H3.
+    apply (empt (eval p2) (choi skip p2) p2 H3).
+    rewrite <- H7.
+    cut (~Diverge p1);intro HD1.
+    exact (H p1 HD1).
     Guarded.
+    apply HD;rewrite H0;apply choirdiv;trivial.
 
+    rewrite exec_eps.
+    rewrite <- H6,H7,<-H4 in H3.
+    apply (empt (eval p2) (choi p2 skip) p2 H3).
+    rewrite <- H7.
+    cut (~Diverge p0);intro HD0.
+    exact (H p0 HD0).
+    Guarded.
+    apply HD;rewrite H0;apply choildiv;trivial.
 
-    cut (isMember e0 (menu p0));intros.
+    rewrite exec_eps.
+    rewrite <- H5,<-H6,<-H4,<-H7 in H3.
+    apply (empt (eval stop) (choi stop stop) stop H3).
+    trace_unfold (eval stop);simpl;constructor.
 
- (aaa p0 p1 e0 l H1).
+    exact (sseval_correct e (choi p0 p1) p2 H2).
+  
+    constructor.
 
-     
-     
-    apply (ttt p p1 e1 (eval p1)).
-     apply sseval_correct;trivial.
-    
-     rewrite H0 in H2;inversion H2.
-     destruct (beq_event e0 e1);inversion H4.
-     rewrite <- H5.
-     exact (H p1).
+   (* Seq *)
+   case_eq (menu (seq p0 p1));intros;simpl choose;cbv iota beta.
+    constructor.
+    case_eq (smallstep_eval (seq p0 p1) e);intros.
+     cut (Op (seq p0 p1) e p2);intros.
+     inversion H3.
+     apply (seqt (eval (seq q p1)) q p1 p0 e).
+     cut (~Diverge (seq q p1));intro.
+     exact (H (seq q p1) H9).
      Guarded.
-   
+      inversion H9.
+       apply HD.
+       rewrite H0.
+       apply seqldiv.
+       
+Lemma div_pred : forall (p q:Proc)(e:Event), Op p e q -> Diverge q -> Diverge p.
+Proof.
+  induction p;intros;simpl;inversion H.
+  constructor;trivial.
+  apply choildiv;exact (IHp1 q e H3 H0).
+  apply choirdiv;exact (IHp2 q e H3 H0).
+  rewrite <- H4 in H0.
+  inversion H0.
+   apply choildiv;exact (IHp1 q0 Eps H5 H7).
+   apply choirdiv;trivial.
+  rewrite <- H4 in H0.
+  inversion H0.
+   apply choildiv;trivial.
+   apply choirdiv;exact (IHp2 q0 Eps H5 H7).
+  apply choirdiv;trivial.
+  apply choildiv;trivial.
+  rewrite <- H4 in H0;inversion H0.
+  rewrite <- H4 in H0;inversion H0.
+  apply seqldiv.
+   exact (IHp1 q0 e H5 H7).
+  apply seqdiv;trivial.
+  apply seqdiv;trivial.
+  rewrite <- H4 in H0;inversion H0.
+  rewrite <- H6 in H0;inversion H0.
+  apply parldiv; exact (IHp1 q0 e0 H4 H10).
+  apply parrdiv; exact (IHp2 t e0 H7 H10).
+  rewrite <- H5 in H0;inversion H0.
+   apply parldiv;exact (IHp1 q0 e0 H6 H9).
+   apply parrdiv;trivial.  
+  rewrite <- H5 in H0;inversion H0.
+   apply parldiv;trivial.
+   apply parrdiv;exact (IHp2 q0 e0 H6 H9).
+  rewrite <- H5 in H0;inversion H0.
+  rewrite <- H3 in H0;inversion H0.
+
+
+
+(* ....................................... *)
 
   induction p0;intros;simpl.
   trace_unfold (eval stop);constructor.
