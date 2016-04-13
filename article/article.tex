@@ -1,0 +1,49 @@
+\documentclass{comjnl}
+
+\usepackage{amsmath}
+
+%\copyrightyear{2009} \vol{00} \issue{0} \DOI{000}
+
+\begin{document}
+
+
+\title[Executable code generation from CSP specifications]{Executable code generation from CSP specifications}
+\author{Federico Rossi}
+\affiliation{Analysis of Programming Language and Formal construction of programs, Bachelor Degree in Computer Science, National University of Rosario, Argentina} \email{frossi.933@gmail.com}
+
+\shortauthors{F. Rossi}
+
+%\category{C.2}{Computer Communication Networks}{Computer Networks}
+%\category{C.4}{Performance of Systems}{Analytical Models}
+%\category{G.3}{Stochastic Processes}{Queueing Systems}
+%\terms{Internet Technologies, E-Commerce}
+\keywords{Communicating Sequential Processes, Coq system, Formal methods, ... }
+
+
+\begin{abstract}
+Communicating Sequential Processes (CSP) is a formal language for describing
+patterns of interaction in concurrent systems. CSP has been practically applied
+in industry for specifying and verifying the concurrent aspects of a
+variety of different systems. But those applications are still in other level of
+abstraction different from the source code and we can identify a gap between the
+specifications and the implementation of a system. This project tended to fill the gap
+and increase the practical approach, giving a tool for deriving executable code from a
+formal specification and some functions written in Haskell. First of all, a domain 
+specific language for a little bit different version of CSP, which is called CSPi, is
+defined. Then, the evaluator is develop using Haskell based on an operational semantics.
+On the other hand, this development includes formal proofs within the coq system that 
+ensure the correctness of the evaluator.
+\end{abstract}
+
+\maketitle
+
+
+\section{Introduction}
+CSP was first described in a 1978 paper by Tony Hoare (1). It has been applied in 
+industry developments, such as the T9000 Transputer,[7] as well as a secure ecommerce system.[8]
+The theory of CSP itself is also still the subject of active research. Industrial application to software design has usually focused on dependable and safety-critical systems. For example, the Bremen Institute for Safe Systems and Daimler-Benz Aerospace modeled a fault management system and avionics interface (consisting of some 23,000 lines of code) intended for use on the International Space Station in CSP, and analyzed the model to confirm that their design was free of deadlock and livelock.[13][14] The modeling and analysis process was able to uncover a number of errors that would have been difficult to detect using testing alone. 
+All these examples show us the importance of specify our systems using formal languages to produce high quality software.
+But sometimes in industry, the specification stage is considered not important because it doesn't take part directly in the source code or executable program. The aim of this coursework is to engage both stages in the development and create a strong dependency between them, ensuring that the program obtained respect its formal specification.
+
+
+(https://www.overleaf.com/4882976bwshpk#/15007996/)
