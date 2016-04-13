@@ -43,7 +43,39 @@ CSP was first described in a 1978 paper by Tony Hoare (1). It has been applied i
 industry developments, such as the T9000 Transputer,[7] as well as a secure ecommerce system.[8]
 The theory of CSP itself is also still the subject of active research. Industrial application to software design has usually focused on dependable and safety-critical systems. For example, the Bremen Institute for Safe Systems and Daimler-Benz Aerospace modeled a fault management system and avionics interface (consisting of some 23,000 lines of code) intended for use on the International Space Station in CSP, and analyzed the model to confirm that their design was free of deadlock and livelock.[13][14] The modeling and analysis process was able to uncover a number of errors that would have been difficult to detect using testing alone. 
 All these examples show us the importance of specify our systems using formal languages to produce high quality software.
-But sometimes in industry, the specification stage is considered not important because it doesn't take part directly in the source code or executable program. The aim of this coursework is to engage both stages in the development and create a strong dependency between them, ensuring that the program obtained respect its formal specification.
+But sometimes in industry, the specification stage is considered not important because it doesn't take part directly in the source code or executable program. The aim of this coursework is to engage both stages in the development and create a strong dependency between them, ensuring that the program obtained respects its formal specification.
+CSPi is a simplified version of CSP with new notions about events. Each event can be associated with a function implemented in Haskell. These functions 
+may be a predicate (whose return type is a boolean) or an action (which performs an I/O activity).
+The main idea is to describe and model the logic of the system using CSPi and implement the interface with the world using Haskell. 
+Let's think a small system where we can apply these ideas. There is a cell production with two robotic arms, two conveyor belts and one press. Each arm must take one piece from one of the belts and drop it on the press (each arm works on one belt). Each conveyor belt triggers a signal when one piece is coming. The press receives signals to press and remove resultant piece, and triggers signals when the press process is over and when it is ready for a new piece. In this case, we can model the logic of the system using CSPi, this is independent of the specific hardware. Then, we have to implement the interface in Haskell, that is, make the predicates that tell us when the signals are triggered and the functions that control the arms, belts and press. Again, those functions are not related with the system's model. 
+The independence is always a very desired outcome. It helps to minimize the costs of change in the future. 
+The fact of modeling the system in a formal language, such as CSP, gives us many adventages. It allows to describe the system in a higher level of abstraction. On the other hand, it gives the possibility to demonstrate formally properties of the program, like in the examples above.
+I introduce the CSPi language in next section, then in Section 2 I analyse the haskell implementation of the evaluator and finally in Section 3 I describe and show the Coq formalization and proofs carried out.
 
+\section{CSPi Language}
+CSPi contains a subset of CSP operands and functionalities. 
+
+
+\begin{align}
+Proc    :&\> STOP             \\
+        &|\> SKIP             \\
+        &|\> '(' Proc ')'     \\
+        &|\> Event '->' Proc  \\
+        &|\> RefProc          \\
+        &|\> Proc '||' Proc   \\
+        &|\> Proc '[]' Proc   \\
+        &|\> Proc '/|' Proc   \\
+        &|\> Proc ';' Proc    \\
+        &|\> Proc '|>' Proc   \\
+\end{align}
+
+\bibliographystyle{compj}
+\bibliography{ModellingBidders}
+
+
+\end{document}
+
+
+When an event is associated with a predicate it is called "In Event" because it will be part of the interface, telling us when an event is ready to evolve. When an event is associated with an action it is called "Out Event" due to it will be part of the interface too, but performing some action to the outside world.
 
 (https://www.overleaf.com/4882976bwshpk#/15007996/)
