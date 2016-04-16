@@ -1,6 +1,8 @@
 \documentclass{comjnl}
 
 \usepackage{amsmath}
+\usepackage{latexsym}
+\usepackage{proof}
 
 %\copyrightyear{2009} \vol{00} \issue{0} \DOI{000}
 
@@ -69,13 +71,221 @@ Proc    :&\> STOP             \\
         &|\> Proc '|>' Proc   \\
 \end{align}
 
+
+\section{Formal Proofs}
+The objective of this section is to introduce the project formalization within the Coq System. It attemps to prove that executable programs generated behave like their specifications. First of all, I present the event representation, then  I describe an operational semantic for CSPi, based on (82). After that, I define what I'll consider a trace in my system. Finally, I show that the two main evaluation functions respect the semantic and return a valid trace.
+\subsection{Events Representation}
+In previous sections I described in words the notion and meaning of the differents types of events. Now it's time to define them in a formal way. In addition, I consider a new kind of event, it is called Epsilon and performs a silent transition. It can be seen as an event to "rewrite" or "redefine" some process. It is going to be more clear in the eval function definition. It's important to remark that Epsilon is transparent to the user, that is, it doesn't interact with the outside world.
+Some previous definitions are required:
+\begin{verbatim}
+Definition IdEv : Set := nat.
+Definition Input : Set := bool.
+Parameter Output : Set.
+Definition Pred : Set := nat -> Input.
+Definition Act : Set := nat -> Output.
+\end{verbatim}
+I need to identify each event, for that purpose I use IdEv. Input and Output symbolize a return type of some function after carrying out an I/O activity. Input must be a boolean but Output can be any type. Finally, Pred and Act represent the functions associated with the events. In this case, they receive a natural argument but it is just a simplification. Thus, the events have the following definition:
+\begin{verbatim}
+Inductive Event : Set :=
+  Eps : Event
+  EIn : IdEv -> Pred -> Event
+  EOut : IdEv -> Act -> Event.
+\end{verbatim} 
+ Afterward, I define an equality between events and it is based on comparing only id's. Two events are equal if and only if their id's are equal or both are Epsilon.  \\
+\begin{verbatim}
+Inductive Beq_event : Event -> Event -> Prop :=
+| beq_eps : Beq_event Eps Eps
+| beq_inin : forall (i:IdEv)(p1 p2:Pred), 
+    Beq_event (EIn i p1)(EIn i p2) 
+| beq_inout : forall (i:IdEv)(p:Pred)(a:Act), 
+    Beq_event (EIn i p)(EOut i a) 
+| beq_outout : forall (i:IdEv)(a1 a2:Act), 
+    Beq_event (EOut i a1)(EOut i a2)
+| beq_outin : forall (i:IdEv)(a:Act)(p:Pred), 
+    Beq_event (EOut i a)(EIn i p).
+\end{verbatim}
+At last, I create a simple structure to specify a set of events. It is just a list with no repetition and the basics operations of set, such as member, add, intersection, union and difference. This structure is used when the eval function calculates, which I called, the menu of a process, that is, the set of possible events ready to evolve.
+In the future, it would be interesting to add support to channels, including them as a new kind of event.  
+
+\subsection{Semantics}
+As a first step I give an operational semantics following the main ideas expressed in (92) by Manfred Broy. An operational Semantics is recommended for several reasons. First, it does not lead into the complex problems of power domains that have to be dealt with in mathematical semantics. Second, formalized operational semantics guarantees that the concepts incorporated in the language actually can be implemented. Third, it serves as a complementary definition such that the "correctness" of mathematical ("denotational") semantics can be verified. Fourth, it helps to understand where the particular problems of mathematical semantics come from, since the "abstraction" mapping the operational semantics into the mathematical one can be made explicit.
+The semantics is given by the introduction of a ternary relation:\\
+\begin{verbatim}
+  Op: Proc -> Event -> Proc -> Prop
+\end{verbatim}
+For better readability I write:\\
+$ P \xrightarrow{e} Q for Op P e Q $\\
+
+This means that the process P may evolve through the event e (maybe performing the action associated with e) and then behave like the process Q.
+Thus, the definition in Coq is shown in figure 1 and the respective rules are shown in figure 2.
+Some aspects to remark, first in the parallel operator is needed to specify a set of events, which must be the events in common between both processes parallelized. If there is an common event not included in that set then the evaluator does not guarantee its correct evaluation. Second ...
+\subsection{Small step evaluation}
+Now, I can define the function which is going to make a small step in the evaluation procedure. It is called smallstep\_eval and has the following prototype:
+\begin{verbatim}
+Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc
+\end{verbatim}
+It is a recursive function that takes a process and an event and returns possibly a new process. It may fails, so its return type is an option. The complete function definition can be seen in figure 3. After that, my primary objective is to prove the correctness of it and that is achived constructing a proof for the theorem below:
+\begin{verbatim}
+Theorem sseval_correct: 
+  forall (e:Event)(p q:Proc), 
+    smallstep_eval p e = Some q -> Op p e q.
+\end{verbatim}
+It states that if small step function is apply to some process and event and it returns a new process, then that evolution is part of the semantics. It is proven by induction on the process p and making some case analysis. The proof is too long to be included in this document, it is available along with complementary code in the files "eval.v" and "event.v".
+\subsection{Big step evaluation}
+Now it's time to think about the entire process execution. The concept of trace is used to model the resultant behaviours of process execution. Its definition is below:
+\begin{verbatim}
+CoInductive Trace : Set :=
+  nilt : Trace
+| const : Output -> Trace -> Trace.
+\end{verbatim}
+Now I have a coinductive type because It's necessary to represent possible infinite runnings, such as the cell production system described before. But It also possible to have a finite trace, for that reason is the nilt constructor. A finite trace is always obtained when the process reduces to skip or stop. When it's the case of skip the system finished correctly and when it's the case of stop that symbolize an erroneous outcome.
+Some new parameters included are:
+\begin{verbatim}
+Parameter empty : Output.
+Parameter tick : Output.
+Parameter execAct : Event -> Output.
+Parameter test : Pred -> bool.
+Parameter rand : unit -> bool.
+\end{verbatim}
+empty and tick are special outputs that indicate no action performs and an appropriate finish, respectively. execAct serves as the representation of execute an action associated with an event. If there is no action or it is applied to $\epsilon$, it returns empty. test function gives the current state of a predicate. Lastly, rand illustrates a function that returns a bool randomly.
+Thereafter, I define what I will consider an acceptable trace for a specific process. This is the isTrace relation presented below in figure 4.
+Finally, I introduce the main function eval, which formalizes the concrete outcome of this project. Its definition is shown in figure 5.
+
+\begin{figure*}[!ht]
+\caption{\label{fig:my-label} Operational Semantics of CSPi}
+\begin{verbatim}
+Inductive Op : Proc -> Event -> Proc -> Prop :=
+| prefok:   forall (e0 e:Event)(p:Proc), Beq_event e0 e -> Op (pref e0 p) e p
+| choil:    forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi p r) e q
+| choir:    forall (e:Event)(p q r:Proc), Op p e q -> e <> Eps -> Op (choi r p) e q
+| choiepsl: forall (p q r:Proc), Op p Eps q -> Op (choi p r) Eps (choi q r)
+| choiepsr: forall (p q r:Proc), Op p Eps q -> Op (choi r p) Eps (choi r q)
+| choistop: Op (choi stop stop) Eps stop
+| skipl:    forall (p:Proc), Op (choi skip p) Eps p
+| skipr:    forall (p:Proc), Op (choi p skip) Eps p
+| seql:     forall (e:Event)(p q r:Proc), Op p e q -> Op (seq p r) e (seq q r)
+| seqskip:  forall (p:Proc), Op (seq skip p) Eps p
+| seqstop:  forall (p:Proc), Op (seq stop p) Eps stop
+| sync:     forall (e:Event)(p q r t:Proc)(s:EvSet), Op p e q -> Op r e t -> isMember e s -> Op (par s p r) e (par s q t)
+| parl:     forall (e:Event)(p q r:Proc)(s:EvSet), Op p e q -> ~(isMember e s) -> Op (par s p r) e (par s q r)
+| parr:     forall (e:Event)(p q r:Proc)(s:EvSet), Op p e q -> ~(isMember e s) -> Op (par s r p) e (par s r q)
+| parskip:  forall (s:EvSet), Op (par s skip skip) Eps skip
+| idref:    forall (n:Name), Op (id n) Eps (Env n).
+\end{verbatim}
+\end{figure*}
+
+\begin{figure*}
+\caption{\label{fig:my-label} Semantics Rules of CSPi}
+\[
+\arraycolsep=1.4pt
+\def\arraystretch{2.6}
+\begin{array}{l c r}
+\infer[PrefOk]{(e \rightarrow P) \xrightarrow{e}P}{} & \infer[ChoiL]{P \Box R \xrightarrow{e} Q}{(P \xrightarrow{e} Q) & e \neq \epsilon} & \infer[ChoiR]{R \Box P \xrightarrow{e} Q}{(P \xrightarrow{e} Q) & e \neq \epsilon} \\
+\infer[ChoiEpsL]{P \Box R \xrightarrow{\epsilon} Q \Box R}{(P \xrightarrow{\epsilon} Q)} & \infer[ChoiEpsR]{R \Box P \xrightarrow{\epsilon} R \Box Q}{(P \xrightarrow{\epsilon} Q)} & \infer[ChoiStop]{Stop \Box Stop \xrightarrow{\epsilon} Stop}{} \\
+\infer[SkipL]{Skip \Box P \xrightarrow{\epsilon} P}{} & \infer[SkipR]{P \Box Skip \xrightarrow{\epsilon} P}{} & \infer[SeqL]{P ; R \xrightarrow{e} Q ; R}{P \xrightarrow{e} Q} \\
+\infer[SeqSkip]{Skip ; P \xrightarrow{\epsilon} P}{} & \infer[SeqStop]{Stop ; P \xrightarrow{\epsilon} Stop}{} & \infer[Sync]{P \parallel_\mathcal{S} R \xrightarrow{e} Q \parallel_\mathcal{S} T}{P \xrightarrow{e} Q & R \xrightarrow{e} T & e \in \mathcal{S}} \\
+\infer[ParL]{P \parallel_\mathcal{S} R \xrightarrow{e} Q \parallel_\mathcal{S} R}{P \xrightarrow{e} Q & e \notin \mathcal{S}} & \infer[ParR]{R \parallel_\mathcal{S} P \xrightarrow{e} R \parallel_\mathcal{S} Q}{P  \xrightarrow{e} Q & e \notin \mathcal{S}} & \infer[ParSkip]{Skip \parallel_\mathcal{S} Skip \xrightarrow{\epsilon} Skip}{} \\
+\infer[IdRef]{Id N \xrightarrow{\epsilon} Env N}{}
+\end{array}
+\]
+\end{figure*}
+
+\begin{figure*}
+\caption{\label{fig:my-label} smallstep\_eval definition}
+\begin{verbatim}
+Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc :=
+  match p, e with 
+  | stop, v => None
+  | skip, v => None
+  | pref v r, v' => if beq_event v v' then Some r else None
+  | choi stop stop, Eps => Some stop
+  | choi skip p2, Eps => Some p2
+  | choi p1 skip, Eps => Some p1
+  | choi p1 p2, Eps => match smallstep_eval p1 Eps, smallstep_eval p2 Eps with
+                         None, None => None
+                       | Some p3, None => Some (choi p3 p2)
+                       | None, Some p4 => Some (choi p1 p4)
+                       | Some p3, Some p4 => Some (choi p3 p2) (* TODO: random *)
+                       end
+  | choi p1 p2, v => match smallstep_eval p1 v, smallstep_eval p2 v with
+                       None, None => None
+                     | Some p3, None => Some p3
+                     | None, Some p4 => Some p4
+                     | Some p3, Some p4 => Some p3 (* TODO: random *)
+                     end
+  | seq skip p, Eps => Some p
+  | seq stop p, Eps => Some stop   (* ?? *)
+  | seq p1 p2, v => match smallstep_eval p1 v with
+                      Some p3 => Some (seq p3 p2)
+                    | None => None
+                    end
+  | par s skip skip, Eps => Some skip
+  | par s p1 p2, v => if isElem v s then match smallstep_eval p1 v, smallstep_eval p2 v with
+                                           Some p3, Some p4 => Some (par s p3 p4)
+                                         | _ , _ => None
+                                         end
+                                    else match smallstep_eval p1 v, smallstep_eval p2 v with
+                                           Some p3, None => Some (par s p3 p2)
+                                         | None, Some p4 => Some (par s p1 p4)
+                                         | _, _ => None
+                                         end
+  | id n, Eps => Some (Env n) (* ?? *)
+  | p , v => None
+  end.
+\end{verbatim}
+\end{figure*}
+
+\begin{figure*}
+\caption{\label{fig:my-label} isTrace predicate}
+\begin{verbatim}
+CoInductive isTrace : Trace -> Proc -> Prop :=
+  skip_tick : isTrace (tick :: nilt) skip
+| empt:       forall (t:Trace)(p1 p2:Proc), Op p1 Eps p2 -> 
+                                        isTrace t p2 -> 
+                                        isTrace (empty :: t) p1
+| nil_is_t: forall p:Proc, isTrace nilt p
+| preft :   forall (t:Trace)(p:Proc)(e1 e2:Event), Beq_event e2 e1 -> isTrace t p 
+                                                                     -> isTrace ((execAct e1)::t) (pref e2 p)
+| choitl :  forall (t:Trace)(p1 p2:Proc), isTrace t p1 -> isTrace t (choi p1 p2)
+| choitr :  forall (t:Trace)(p1 p2:Proc), isTrace t p2 -> isTrace t (choi p1 p2)
+| seqt:     forall (t:Trace)(p1 p2 p3:Proc)(e:Event), isTrace t (seq p1 p2) -> Op p3 e p1 
+                                                                           -> isTrace ((execAct e) :: t) (seq p3 p2)
+| parsynct: forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3 p4:Proc),
+                   isMember e s -> Op p3 e p1 -> Op p4 e p2 -> isTrace t (par s p1 p2) 
+              -> isTrace (execAct e :: t) (par s p3 p4)
+| parlt:    forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3:Proc), ~isMember e s 
+                                                                                           -> Op p3 e p1 
+                                                                                           -> isTrace t (par s p1 p2) 
+                                                                                           -> isTrace (execAct e :: t) (par s p3 p2)
+| parrt:    forall (t:Trace)(e:Event)(s:EvSet)(p1 p2 p3:Proc), ~isMember e s 
+                                                                                           -> Op p3 e p2 
+                                                                                           -> isTrace t (par s p1 p2) 
+                                                                                           -> isTrace (execAct e :: t) (par s p1 p3).
+\end{verbatim} 
+\end{figure*}
+
+\begin{figure*}
+\caption{\label{fig:my-label} eval definition}
+\begin{verbatim}
+CoFixpoint eval (p:Proc) : Trace := match p with
+  stop => nilt
+| skip => tick :: nilt
+| q => match choose (menu q) with
+         None => nilt
+       | Some e => match smallstep_eval q e with
+                     None => nilt
+                   | Some r => execAct e :: (eval r)
+                   end
+       end
+end.
+\end{verbatim}
+\end{figure*}
+
 \bibliographystyle{compj}
 \bibliography{ModellingBidders}
-
-
 \end{document}
 
 
-When an event is associated with a predicate it is called "In Event" because it will be part of the interface, telling us when an event is ready to evolve. When an event is associated with an action it is called "Out Event" due to it will be part of the interface too, but performing some action to the outside world.
+%When an event is associated with a predicate it is called "In Event" because it will be part of the interface, telling us when an event is ready to evolve. When an event is associated with an action it is called "Out Event" due to it will be part of the interface too, but performing some action to the outside world.
 
-(https://www.overleaf.com/4882976bwshpk#/15007996/)
+%(https://www.overleaf.com/4882976bwshpk#/15007996/)

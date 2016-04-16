@@ -2,7 +2,6 @@ Require Import List.
 Require Import Coq.Arith.EqNat.
 
 Definition IdEv : Set := nat.
-
 Definition Input : Set := bool.
 Parameter Output : Set.
 Definition Pred : Set := nat -> Input.

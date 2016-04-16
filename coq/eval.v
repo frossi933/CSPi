@@ -1,6 +1,6 @@
 Require Import Coq.Arith.EqNat.
 
-Load evset.
+Load event.
 
 Definition Menu := EvSet.
 Definition Name : Set := nat.
@@ -234,13 +234,8 @@ Check trans_equal.
 Check trace_dec_lemma.
 
 Ltac trace_unfold term := rewrite (trace_dec_lemma term).
-(*
-Ltac trace_unfold_hyp t := match goal with
-  h: context[t] |- _ => rewrite (trace_dec_lemma t) in h
-end.
-*)
 
-(* Successful termination or Finite Trace *)
+(* Successful termination or Finite Trace 
 CoInductive succTerm : Proc -> Prop :=
   st_skip : succTerm skip
 | st_pref : forall (e:Event)(p:Proc), succTerm p -> succTerm (pref e p)
@@ -253,7 +248,7 @@ CoFixpoint concatt (t1 t2:Trace) : Trace := match t1 with
   nilt => t2
 | o :: t1' => o :: (concatt t1' t2)
 end.
-
+*)
 Parameter execAct : Event -> Output.
 Parameter test : Pred -> bool.
 Parameter tick : Output.
@@ -261,9 +256,9 @@ Parameter empty : Output.
 Parameter rand : unit -> bool.
 
 Axiom exec_eps : execAct Eps = empty.
-Axiom exec_ein : forall (i:IdEv)(pr:Pred), execAct (EIn i pr) = empty.
+(*Axiom exec_ein : forall (i:IdEv)(pr:Pred), execAct (EIn i pr) = empty.
 Axiom exec_eout : forall (i:IdEv)(f:Act), execAct (EOut i f) <> empty.
-
+*)
 CoInductive isTrace : Trace -> Proc -> Prop :=
   skip_tick : isTrace (tick :: nilt) skip
 | empt:       forall (t:Trace)(p1 p2:Proc), Op p1 Eps p2 -> 
@@ -410,7 +405,6 @@ Qed.
 
 (* This is the main theorem. It states that eval function returns one possible trace of the
 process received. It just requires a non-diverging process as argument. *)
-
 Theorem eval_correct: forall (p:Proc), ~(Diverge p) -> isTrace (eval p) p.
 Proof.
   cofix H.
