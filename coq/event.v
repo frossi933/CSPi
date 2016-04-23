@@ -139,7 +139,7 @@ Fixpoint getOutOf (e:Event)(s:EvSet) : Event :=
     match e with
     | EIn _ _ => match s with
                    nil => e
-                 | f :: fs => if beq_event e f then f else getOutOf e fs
+                 | cons f fs => if beq_event e f then f else getOutOf e fs
                  end
     | _ => e
     end.
@@ -147,20 +147,20 @@ Fixpoint getOutOf (e:Event)(s:EvSet) : Event :=
 Fixpoint set_inter (x:EvSet) : EvSet -> EvSet :=
     match x with
     | nil => fun y => nil
-    | a1 :: x1 =>
+    | cons a1 x1 =>
         fun y =>
-          if isElem a1 y then (getOutOf a1 y) :: set_inter x1 y else set_inter x1 y
+          if isElem a1 y then cons (getOutOf a1 y) (set_inter x1 y) else set_inter x1 y
     end.
 
 Fixpoint set_union (x y:EvSet) : EvSet :=
     match y with
     | nil => x
-    | a1 :: y1 => set_add a1 (set_union x y1)
+    | cons a1 y1 => set_add a1 (set_union x y1)
     end.
 
 Fixpoint set_diff (x y:EvSet) : EvSet :=
     match x with
     | nil => nil
-    | a1 :: x1 =>
+    | cons a1 x1 =>
         if isElem a1 y then set_diff x1 y else set_add a1 (set_diff x1 y)
     end.

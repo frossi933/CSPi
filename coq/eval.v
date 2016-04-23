@@ -235,20 +235,6 @@ Check trace_dec_lemma.
 
 Ltac trace_unfold term := rewrite (trace_dec_lemma term).
 
-(* Successful termination or Finite Trace 
-CoInductive succTerm : Proc -> Prop :=
-  st_skip : succTerm skip
-| st_pref : forall (e:Event)(p:Proc), succTerm p -> succTerm (pref e p)
-| st_choi : forall (p1 p2:Proc), succTerm p1 -> succTerm p2 -> succTerm (choi p1 p2)
-| st_seq : forall (p1 p2:Proc), succTerm p1 -> succTerm p2 -> succTerm (seq p1 p2)
-| st_par : forall (p1 p2:Proc)(s:EvSet), succTerm p1 -> succTerm p2 -> succTerm (par s p1 p2).
-
-
-CoFixpoint concatt (t1 t2:Trace) : Trace := match t1 with
-  nilt => t2
-| o :: t1' => o :: (concatt t1' t2)
-end.
-*)
 Parameter execAct : Event -> Output.
 Parameter test : Pred -> bool.
 Parameter tick : Output.
@@ -256,9 +242,9 @@ Parameter empty : Output.
 Parameter rand : unit -> bool.
 
 Axiom exec_eps : execAct Eps = empty.
-(*Axiom exec_ein : forall (i:IdEv)(pr:Pred), execAct (EIn i pr) = empty.
+Axiom exec_ein : forall (i:IdEv)(pr:Pred), execAct (EIn i pr) = empty.
 Axiom exec_eout : forall (i:IdEv)(f:Act), execAct (EOut i f) <> empty.
-*)
+
 CoInductive isTrace : Trace -> Proc -> Prop :=
   skip_tick : isTrace (tick :: nilt) skip
 | empt:       forall (t:Trace)(p1 p2:Proc), Op p1 Eps p2 -> 
@@ -294,12 +280,7 @@ Fixpoint menu (p:Proc) : Menu := match p with
 end.
 
 
-Definition choose (m:Menu) : option Event := 
-match m with
-  nil => None
-| cons e es => Some e
-end.
-(*Fixpoint choose (m:Menu) : option Event := match m with
+Fixpoint choose (m:Menu) : option Event := match m with
   nil => None
 | cons e es => match es with
                  nil => Some e
@@ -307,7 +288,7 @@ end.
                                          else choose es
                end
 end.
-*)
+
 
 Theorem menu_correct : forall (p:Proc)(e:Event), isMember e (menu p) -> exists q:Proc, smallstep_eval p e = Some q.
 (* TODO *)
@@ -414,89 +395,94 @@ Proof.
    constructor.
    constructor.
    (* Prefix *)
-   case_eq (menu (pref e p0));intros;simpl choose;cbv iota beta.
-    constructor.
-    case_eq (smallstep_eval (pref e p0) e0);intros;cbv iota beta.
+   case_eq (menu (pref e p0));intros. 
+     simpl choose;cbv iota beta;constructor.
+    case_eq (choose (cons e0 l));intros;simpl choose.
+    case_eq (smallstep_eval (pref e p0) e1);intros;cbv iota beta.
      constructor.
-      inversion H2.
-      case_eq (beq_event e e0);intros;rewrite H3 in H4;inversion H4;exact (eq_event_true e e0 H3).
-      inversion H2.
-      destruct (beq_event e e0);inversion H4.
+      inversion H3.
+      case_eq (beq_event e e1);intro H4;rewrite H4 in H5;inversion H5;exact (eq_event_true e e1 H4).
+      inversion H3.
+      destruct (beq_event e e1);inversion H5.
       cut (~Diverge p1);intro HDp1.
       exact (H p1 HDp1).
-      apply HD;rewrite H0;rewrite <- H5 in HDp1;constructor;trivial.
+      apply HD;rewrite H0;rewrite <- H6 in HDp1;constructor;trivial.
+     constructor.
      constructor.
    (* Choice *) 
-   case_eq (menu (choi p0 p1));intros;simpl choose;cbv iota beta.
-    constructor.
-    case_eq (smallstep_eval (choi p0 p1) e);intros;cbv iota beta.
-     cut (Op (choi p0 p1) e p2);intros.
-     inversion H3.
+   case_eq (menu (choi p0 p1));intros.
+    simpl choose;cbv iota beta;constructor.
+    case_eq (choose (cons e l));intros;simpl choose.
+    case_eq (smallstep_eval (choi p0 p1) e0);intros;cbv iota beta.
+     cut (Op (choi p0 p1) e0 p2);intros.
+     inversion H4.
       apply choitl.
-      rewrite <- (eval_op p0 p2 e H6).
+      rewrite <- (eval_op p0 p2 e0 H7).
       cut (~Diverge p0);intro HDp0.
       exact (H p0 HDp0).
       apply HD;rewrite H0;apply choildiv;trivial.
 
       apply choitr.
-      rewrite <- (eval_op p1 p2 e H6).
+      rewrite <- (eval_op p1 p2 e0 H7).
       cut (~Diverge p1);intro HDp1.
       exact (H p1 HDp1).
       apply HD;rewrite H0;apply choirdiv;trivial.
 
       rewrite exec_eps.
       apply (empt (eval (choi q p1)) (choi p0 p1) (choi q p1)).
-       rewrite H7,H5;trivial.
+       rewrite H8,H6;trivial.
        cut (~Diverge (choi q p1));intro HND.
        exact (H (choi q p1) HND).
        apply HD.
        rewrite H0.
-       rewrite <- H5, <- H7 in H3;exact (div_pred (choi p0 p1) (choi q p1) Eps H3 HND).
+       rewrite <- H6, <- H8 in H4;exact (div_pred (choi p0 p1) (choi q p1) Eps H4 HND).
 
       rewrite exec_eps.
       apply (empt (eval (choi p0 q)) (choi p0 p1) (choi p0 q)).
-       rewrite H7,H5;trivial.
+       rewrite H8,H6;trivial.
        cut (~Diverge (choi p0 q));intro HND.
        exact (H (choi p0 q) HND).
        apply HD;rewrite H0.
-       rewrite <- H5, <- H7 in H3;exact (div_pred (choi p0 p1) (choi p0 q) Eps H3 HND).
+       rewrite <- H6, <- H8 in H4;exact (div_pred (choi p0 p1) (choi p0 q) Eps H4 HND).
 
       rewrite exec_eps.
-      rewrite <- H5,H7,<-H4 in H3.
-      apply (empt (eval p2) (choi skip p2) p2 H3).
-       rewrite <- H7.
+      rewrite <- H6,H8,<-H5 in H4.
+      apply (empt (eval p2) (choi skip p2) p2 H4).
+       rewrite <- H8.
        cut (~Diverge p1);intro HD1.
        exact (H p1 HD1).
        apply HD;rewrite H0;apply choirdiv;trivial.
 
       rewrite exec_eps.
-      rewrite <- H6,H7,<-H4 in H3.
-      apply (empt (eval p2) (choi p2 skip) p2 H3).
-       rewrite <- H7.
+      rewrite <- H7,H8,<-H5 in H4.
+      apply (empt (eval p2) (choi p2 skip) p2 H4).
+       rewrite <- H8.
        cut (~Diverge p0);intro HD0.
        exact (H p0 HD0).
        apply HD;rewrite H0;apply choildiv;trivial.
 
       rewrite exec_eps.
-      rewrite <- H5,<-H6,<-H4,<-H7 in H3.
-      apply (empt (eval stop) (choi stop stop) stop H3).
+      rewrite <- H6,<-H7,<-H5,<-H8 in H4.
+      apply (empt (eval stop) (choi stop stop) stop H4).
        trace_unfold (eval stop);simpl;constructor.
 
-      exact (sseval_correct e (choi p0 p1) p2 H2).
+      exact (sseval_correct e0 (choi p0 p1) p2 H3).
+     constructor.
      constructor.
    (* Seq *)
-   case_eq (menu (seq p0 p1));intros;simpl choose;cbv iota beta.
-    constructor.
-    case_eq (smallstep_eval (seq p0 p1) e);intros.
-     cut (Op (seq p0 p1) e p2);intros.
-     inversion H3.
-      apply (seqt (eval (seq q p1)) q p1 p0 e).
+   case_eq (menu (seq p0 p1));intros.
+    simpl choose;cbv iota beta;constructor.
+    case_eq (choose (cons e l));intros;simpl choose.
+    case_eq (smallstep_eval (seq p0 p1) e0);intros.
+     cut (Op (seq p0 p1) e0 p2);intros.
+     inversion H4.
+      apply (seqt (eval (seq q p1)) q p1 p0 e0).
        cut (~Diverge (seq q p1));intro.
-       exact (H (seq q p1) H9).
-       inversion H9.
+       exact (H (seq q p1) H10).
+       inversion H10.
        apply HD;rewrite H0.
        apply seqldiv.
-       exact (div_pred p0 q e H8 H11).
+       exact (div_pred p0 q e0 H9 H12).
        apply HD;rewrite H0.
        apply seqdiv;trivial.
        trivial.
@@ -507,7 +493,7 @@ Proof.
        cut (~Diverge p2);intro HND.
        exact (H p2 HND).
        apply HD.
-       rewrite H0;rewrite <- H7 in HND;apply seqdiv;trivial.
+       rewrite H0;rewrite <- H8 in HND;apply seqdiv;trivial.
 
       rewrite exec_eps.
       apply (empt (eval stop) (seq stop p1) stop).
@@ -516,47 +502,50 @@ Proof.
        exact (H stop HND).
        inversion HND.
 
-      exact (sseval_correct e (seq p0 p1) p2 H2).
+      exact (sseval_correct e0 (seq p0 p1) p2 H3).
+      constructor.
       constructor.
   (* Par *)
-  case_eq (menu (par e p0 p1));intros;simpl choose;cbv iota beta.
-   constructor.
-   case_eq (smallstep_eval (par e p0 p1) e0);intros;simpl.
-    cut (Op (par e p0 p1) e0 p2);intros.
-    inversion H3.
-     apply (parsynct (eval (par e q t)) e0 e q t p0 p1);auto.
-     cut (~Diverge (par e q t));intro HND.
-     exact (H (par e q t) HND).
-     apply HD;rewrite H0.
-     inversion HND.
-     apply parldiv.
-     exact (div_pred p0 q e0 H7 H13).
-     apply parrdiv.
-     exact (div_pred p1 t e0 H10 H13).
+  case_eq (menu (par e p0 p1));intros.
+   simpl choose;cbv iota beta;constructor.
+   case_eq (choose (cons e0 l));intros;simpl choose.
+    case_eq (smallstep_eval (par e p0 p1) e1);intros;simpl.
+     cut (Op (par e p0 p1) e1 p2);intros.
+     inversion H4.
+      apply (parsynct (eval (par e q t)) e1 e q t p0 p1);auto.
+      cut (~Diverge (par e q t));intro HND.
+      exact (H (par e q t) HND).
+      apply HD;rewrite H0.
+      inversion HND.
+      apply parldiv.
+      exact (div_pred p0 q e1 H8 H14).
+      apply parrdiv.
+     exact (div_pred p1 t e1 H11 H14).
 
-    apply (parlt (eval (par e q p1)) e0 e q p1 p0);auto.
+    apply (parlt (eval (par e q p1)) e1 e q p1 p0);auto.
     cut (~Diverge (par e q p1));intro HND.
      exact (H (par e q p1) HND).
      apply HD.
      rewrite H0.
      inversion HND.
-     apply parldiv;exact (div_pred p0 q e0 H9 H12).
+     apply parldiv;exact (div_pred p0 q e1 H10 H13).
      apply parrdiv;trivial.
    
-    apply (parrt (eval (par e p0 q)) e0 e p0 q p1);auto.
+    apply (parrt (eval (par e p0 q)) e1 e p0 q p1);auto.
     cut (~Diverge (par e p0 q));intro HND.
     exact (H (par e p0 q) HND).
     apply HD;rewrite H0.
     inversion HND.
     apply parldiv;trivial.
-    apply parrdiv;exact (div_pred p1 q e0 H9 H12).
+    apply parrdiv;exact (div_pred p1 q e1 H10 H13).
 
     rewrite exec_eps.
     apply (empt (eval skip) (par e skip skip) skip).
-    rewrite H4, H6, H7, H8 at 1;trivial.
+    rewrite H5, H7, H8, H9 at 1;trivial.
 
     trace_unfold (eval skip);simpl;constructor.
-    exact (sseval_correct e0 (par e p0 p1) p2 H2).
+    exact (sseval_correct e1 (par e p0 p1) p2 H3).
+    constructor.
     constructor.
   (* Id *)
   simpl.
