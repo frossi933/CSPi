@@ -20,4 +20,4 @@ module Env where
     envEmpty = Map.empty
     
     envInit :: [ProcDef] -> Env
-    envInit ds = foldl (\e (Def name p) -> envInsert name p e) envEmpty ds
+    envInit ds = foldl (\e (Def name _ p) -> envInsert name p e) envEmpty ds

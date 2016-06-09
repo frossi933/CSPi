@@ -11,7 +11,7 @@
 
 \title[Executable code generation from CSP specifications]{Executable code generation from CSP specifications}
 \author{Federico Rossi}
-\affiliation{Analysis of Programming Language and Formal construction of programs, Bachelor Degree in Computer Science, National University of Rosario, Argentina} \email{frossi.933@gmail.com}
+\affiliation{Programming Language Analysis  and Formal construction of programs, Bachelor Degree in Computer Science, National University of Rosario, Argentina} \email{frossi.933@gmail.com}
 
 \shortauthors{F. Rossi}
 
@@ -26,14 +26,14 @@
 Communicating Sequential Processes (CSP) is a formal language for describing
 patterns of interaction in concurrent systems. CSP has been practically applied
 in industry for specifying and verifying the concurrent aspects of a
-variety of different systems. But those applications are still in other level of
-abstraction different from the source code and we can identify a gap between the
-specifications and the implementation of a system. This project tended to fill the gap
+variety of different systems. But those applications are still in a different level of
+abstraction than the source code and we can identify a gap between the
+specifications and the implementation of a system. This project aims to fill that gap
 and increase the practical approach, giving a tool for deriving executable code from a
 formal specification and some functions written in Haskell. First of all, a domain 
-specific language for a little bit different version of CSP, which is called CSPi, is
-defined. Then, the evaluator is develop using Haskell based on an operational semantics.
-On the other hand, this development includes formal proofs within the coq system that 
+specific language for a slightly different version of CSP, which is called CSPi, is
+defined. Then the evaluator is developed using Haskell, based on an operational semantics.
+On the other hand, this development includes formal proofs within the Coq system that 
 ensure the correctness of the evaluator.
 \end{abstract}
 
@@ -44,19 +44,28 @@ ensure the correctness of the evaluator.
 CSP was first described in a 1978 paper by Tony Hoare (1). It has been applied in 
 industry developments, such as the T9000 Transputer,[7] as well as a secure ecommerce system.[8]
 The theory of CSP itself is also still the subject of active research. Industrial application to software design has usually focused on dependable and safety-critical systems. For example, the Bremen Institute for Safe Systems and Daimler-Benz Aerospace modeled a fault management system and avionics interface (consisting of some 23,000 lines of code) intended for use on the International Space Station in CSP, and analyzed the model to confirm that their design was free of deadlock and livelock.[13][14] The modeling and analysis process was able to uncover a number of errors that would have been difficult to detect using testing alone. 
-All these examples show us the importance of specify our systems using formal languages to produce high quality software.
+All these examples show us the importance of specifying our systems using formal languages to produce high quality software.
 But sometimes in industry, the specification stage is considered not important because it doesn't take part directly in the source code or executable program. The aim of this coursework is to engage both stages in the development and create a strong dependency between them, ensuring that the program obtained respects its formal specification.
 CSPi is a simplified version of CSP with new notions about events. Each event can be associated with a function implemented in Haskell. These functions 
-may be a predicate (whose return type is a boolean) or an action (which performs an I/O activity).
-The main idea is to describe and model the logic of the system using CSPi and implement the interface with the world using Haskell. 
-Let's think a small system where we can apply these ideas. There is a cell production with two robotic arms, two conveyor belts and one press. Each arm must take one piece from one of the belts and drop it on the press (each arm works on one belt). Each conveyor belt triggers a signal when one piece is coming. The press receives signals to press and remove resultant piece, and triggers signals when the press process is over and when it is ready for a new piece. In this case, we can model the logic of the system using CSPi, this is independent of the specific hardware. Then, we have to implement the interface in Haskell, that is, make the predicates that tell us when the signals are triggered and the functions that control the arms, belts and press. Again, those functions are not related with the system's model. 
-The independence is always a very desired outcome. It helps to minimize the costs of change in the future. 
-The fact of modeling the system in a formal language, such as CSP, gives us many adventages. It allows to describe the system in a higher level of abstraction. On the other hand, it gives the possibility to demonstrate formally properties of the program, like in the examples above.
-I introduce the CSPi language in next section, then in Section 2 I analyse the haskell implementation of the evaluator and finally in Section 3 I describe and show the Coq formalization and proofs carried out.
+may be a predicate (which returns a boolean) or an action (which performs an I/O activity).
+The main idea is to describe and model the logic of the system using CSPi and implement the interface with the outer world using Haskell. 
+Let's think a small system where we can apply these ideas. There is a cell production with two robotic arms, two conveyor belts and one press. Each arm must take one item from one of the belts and drop it on the press (each arm works on one belt). Each conveyor belt triggers a signal when one item is coming. The press receives signals to press and remove resultant item, and triggers a signal when it's done processing and it is free to work again. In this case, we can model the logic of the system using CSPi, this is independent of the specific hardware. Then, we have to implement the interface in Haskell, that is, make the predicates that tell us when the signals are triggered and the functions that control the arms, belts and press. Again, those functions are not related with the system's model. 
+The independence is always a desired outcome. It helps minimize the cost of a future change. 
+The fact of modeling the system in a formal language, such as CSP, gives us many adventages. It allows us to describe the system in a higher level of abstraction. Also, one can formally demonstrate properties of the program, like in the examples above.
+I introduce the CSPi language in the next section, then in Section 2 I analyse the Haskell implementation of the evaluator and finally in Section 3 I describe and show the Coq formalization and proofs carried out.
+
+\section{Related Work}
+This project differs from CSP tools such as FDR (029), that are designed to formal reasoning, e. g. proving that one system is a refinement of another. The work described here is much less complete in the formal sense; FDR will cater for all possible traces of a CSP system, the code generated by the compiler described here executes an arbitrary trace of the system. That
+trace may be different each time the program is executed, or the same, consistent with the expected rules of non-determinism. The advantage of this work is that it allows relatively large CSP systems to be exercised, since state-space explosion is not an issue.
+
+There are extensions or libraries for many general purpose programming language providing concurrent models based on Hoare's CSP, such as JCSP, C++CSP, CTC++, .NET CSP, etc. Each of those implementations requires a background knowledge about the programming language itself. Furthermore, these extensions are also limited by the characteristics of the base language. These are useful tools for developing concurrent systems programming in a general purpose language, but I have talked about the big importance of writing a system specification, so given that, the main drawback of this approach is the necessity of translating the formal specification in the chosen programming language. Instead, CSPi connects directly a system specification with its implementation, avoiding programmer's subjective interpretations.
+
+Finally, the most related work is Ocamm programming language. Occam is a parallel programming language developed by David May [May, 83] at Inmos Limited, Bristol, England. Using CSP as a basis, the researchers at Inmos developed an Occam concurrency model.  From the Occam model, they developed the programming language. It is the native language for their transputer microprocessors, but implementations for other platforms are available nowadays.
+
+It worth to say that all works mentioned previously provide a more complete set of features. But this project aims to carry out a different approach to generate executable code from a specification.
 
 \section{CSPi Language}
 CSPi contains a subset of CSP operands and functionalities. 
-
 
 \begin{align}
 Proc    :&\> STOP             \\
@@ -75,7 +84,7 @@ Proc    :&\> STOP             \\
 \section{Formal Proofs}
 The objective of this section is to introduce the project formalization within the Coq System. It attemps to prove that executable programs generated behave like their specifications. First of all, I present the event representation, then  I describe an operational semantic for CSPi, based on (82). After that, I define what I'll consider a trace in my system. Finally, I show that the two main evaluation functions respect the semantic and return a valid trace.
 \subsection{Events Representation}
-In previous sections I described in words the notion and meaning of the differents types of events. Now it's time to define them in a formal way. In addition, I consider a new kind of event, it is called Epsilon and performs a silent transition. It can be seen as an event to "rewrite" or "redefine" some process. It is going to be more clear in the eval function definition. It's important to remark that Epsilon is transparent to the user, that is, it doesn't interact with the outside world.
+In previous sections I informally described the notions and meanings of the different types of events. Now it's time to define them in a formal way. In addition, I consider a new kind of event, it is called Epsilon and performs a silent transition. It can be seen as an event to "rewrite" or "redefine" some process. It is going to be more clear in the eval function definition. It's important to remark that Epsilon is transparent to the user, that is, it doesn't interact with the outer world.
 Some previous definitions are required:
 \begin{verbatim}
 Definition IdEv : Set := nat.
@@ -91,7 +100,7 @@ Inductive Event : Set :=
   EIn : IdEv -> Pred -> Event
   EOut : IdEv -> Act -> Event.
 \end{verbatim} 
- Afterward, I define an equality between events and it is based on comparing only id's. Two events are equal if and only if their id's are equal or both are Epsilon.  \\
+ Afterwards, I define an equality between events and it is based on comparing only id's. Two events are equal if and only if their id's are equal or both are Epsilon.  \\
 \begin{verbatim}
 Inductive Beq_event : Event -> Event -> Prop :=
 | beq_eps : Beq_event Eps Eps
@@ -122,7 +131,8 @@ Some aspects to remark, first in the parallel operator is needed to specify a se
 \subsection{Small step evaluation}
 Now, I can define the function which is going to make a small step in the evaluation procedure. It is called smallstep\_eval and has the following prototype:
 \begin{verbatim}
-Fixpoint smallstep_eval (p:Proc) (e:Event) : option Proc
+Fixpoint smallstep_eval (p:Proc) (e:Event)
+                : option Proc
 \end{verbatim}
 It is a recursive function that takes a process and an event and returns possibly a new process. It may fails, so its return type is an option. The complete function definition can be seen in figure 3. After that, my primary objective is to prove the correctness of it and that is achived constructing a proof for the theorem below:
 \begin{verbatim}
@@ -138,7 +148,7 @@ CoInductive Trace : Set :=
   nilt : Trace
 | const : Output -> Trace -> Trace.
 \end{verbatim}
-Now I have a coinductive type because It's necessary to represent possible infinite runnings, such as the cell production system described before. But It also possible to have a finite trace, for that reason is the nilt constructor. A finite trace is always obtained when the process reduces to skip or stop. When it's the case of skip the system finished correctly and when it's the case of stop that symbolize an erroneous outcome.
+Now I have a coinductive type because It's necessary to represent possible infinite runnings, such as the cell production system described before. But It's also possible to have a finite trace, for that reason there is a nil constructor. A finite trace is always obtained when the process reduces to skip or stop. When it's the case of skip the system finished correctly and when it's the case of stop that symbolizes an erroneous outcome.
 Some new parameters included are:
 \begin{verbatim}
 Parameter empty : Output.
@@ -150,6 +160,27 @@ Parameter rand : unit -> bool.
 empty and tick are special outputs that indicate no action performs and an appropriate finish, respectively. execAct serves as the representation of execute an action associated with an event. If there is no action or it is applied to $\epsilon$, it returns empty. test function gives the current state of a predicate. Lastly, rand illustrates a function that returns a bool randomly.
 Thereafter, I define what I will consider an acceptable trace for a specific process. This is the isTrace relation presented below in figure 4.
 Finally, I introduce the main function eval, which formalizes the concrete outcome of this project. Its definition is shown in figure 5.
+Eval function receives a process and returns a trace which represents the execution of the process. In the general case (the process is not skip or stop), it calculates the menu of the process and chooses randomly an event to perform a small-step evaluation. If that results None the evaluation failed and nil trace is returned. If that results some new process, it execute the action associated with the event chosen and continues recursively.
+
+\subsection{Divergence}
+The diverge predicate is introduced to eliminate those process which can produce an infinite loop of non-actions, that is, they may evolve only with the epsilon event. Formally, If there is a sequence of processes {Pi}i~N with Po =p1 and Op Pi Eps Pi+1 then I say that p1 has the possibility to diverge. The figure 6 shows its definition in Coq.
+The idea is to avoid infinite application of rewriting rules, such as P := id "P"
+
+
+\subsection{Main theorem}
+It's time to prove the principal theorem which states that the evaluator works correctly according to the semantics defined. The theorem statement is as follows:
+\begin{verbatim}
+Theorem eval_correct: forall (p:Proc), 
+       ~(Diverge p) -> isTrace (eval p) p.
+\end{verbatim}
+I need to prove that eval function returns one possible trace of the process received and it just requires a non-diverging process as argument. The complete proof is shown in "eval.v" file. It uses the cofix tactic to construct a co-recursive demonstration and then performs successive cases analysis
+
+
+
+
+%(compiling csp - barnes) -> based on occam-pi, nocc compiler
+%Communicating Sequential Processes for JavaTM (JCSP) -> (https://www.cs.kent.ac.uk/projects/ofa/jcsp/) is a library of Java packages providing a concurrency model that is a judicious combination of ideas from Hoare’s CSP [5] and Milner’s π-calculus
+%the forerunner of similar libraries for other environments – such as C++CSP [12], CTC++ [13] and the .NET CSP implementations https://www.cs.kent.ac.uk/projects/ofa/jcsp/jcsp-paper-2007.pdf
 
 \begin{figure*}[!ht]
 \caption{\label{fig:my-label} Operational Semantics of CSPi}
@@ -280,6 +311,25 @@ CoFixpoint eval (p:Proc) : Trace := match p with
 end.
 \end{verbatim}
 \end{figure*}
+
+\begin{figure*}
+\caption{\label{fig:my-label} Diverge definition}
+\begin{verbatim}
+CoInductive Diverge : Proc -> Prop :=
+  lockdiv: forall n:Name, Env n = (id n) -> Diverge (id n)
+| loopdiv: forall n:Name, Diverge (Env n) -> Diverge (id n)
+| prefdiv: forall (p:Proc)(e:Event), Diverge p -> Diverge (pref e p) (* ??*)
+| choildiv: forall p q:Proc, Diverge p -> Diverge (choi p q)
+| choirdiv: forall p q:Proc, Diverge p -> Diverge (choi q p)
+| seqldiv: forall p q:Proc, Diverge p -> Diverge (seq p q)
+| seqdiv: forall p q:Proc, Diverge q -> Diverge (seq p q)
+| parldiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s p q)
+| parrdiv: forall (p q:Proc)(s:EvSet), Diverge p -> Diverge (par s q p).
+\end{verbatim}
+\end{figure*}
+
+
+
 
 \bibliographystyle{compj}
 \bibliography{ModellingBidders}

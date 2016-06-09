@@ -4,6 +4,7 @@ module ParserCsp where
 import Common
 import Csp
 import Data.Char
+import qualified Data.Set as Set
 
 }
 
@@ -15,6 +16,7 @@ import Data.Char
     SKIP        {TSkip}
     STOP        {TStop}
     PNAME       {TPName $$}
+    ENAME       {TEName $$}
     EONAME      {TEOName $$}
     EINAME      {TEIName $$}
     EXP         {TExp $$}
@@ -31,16 +33,17 @@ import Data.Char
     '!'         {TCOut}
     '('         {TOpen}
     ')'         {TClose}
-    ','         {TComa}
+    ','         {TComma}
     '->'        {TPrefix}
-    '||'        {TPar}
+    '|{'        {TParOpen}
+    '}|'        {TParClose}
     '[]'        {TExtSel}
     '/|'        {TIntSel}
     ';'         {TSeq}
     '|>'        {TInter}
     
 
-%left '||' '[]' '/|' '|>' ';' 
+%left '[]' '/|' '|>' ';' 
 %right '->'
 %%
 
@@ -67,8 +70,8 @@ Proc    : STOP                                  { Stop }
         | '(' Proc ')'                          { $2 }
         | Event '->' Proc                       { Prefix $1 $3 }
         | RefProc                               { $1 }
-        | Proc '||' Proc                        { Parallel $1 $3 }
-        | Proc '[]' Proc                        { ExtSel [$1,$3] }
+        | Proc '|{' EvSet '}|' Proc             { Parallel $3 $1 $5 }
+        | Proc '[]' Proc                        { ExtSel $1 $3 }
         | Proc '/|' Proc                        { IntSel $1 $3 }
         | Proc ';' Proc                         { Seq $1 $3 }
         | Proc '|>' Proc                        { Inter $1 $3 }
@@ -78,6 +81,9 @@ Event   : EventIn                               { In $1 "" }
         | EventOut                              { Out $1 "" }
         | EventIn '?' VAR                       { C (ComIn $1 $3) }
         | EventIn '!' EXP                       { C (ComOut $1 $3) }
+
+EvSet   : Event                                 { Set.singleton $1 }
+        | Event ',' EvSet                       { Set.insert $1 $3 }
         
 EventIn : EINAME                                { $1 }
 
@@ -94,10 +100,11 @@ data Token =  TSkip
             | TStop
             | TOpen
             | TClose
-            | TComa
+            | TComma
             | TPName String
             | TEOName String
             | TEIName String
+            | TEName String
             | TExp String
             | TVar String
             | TPred String
@@ -111,7 +118,8 @@ data Token =  TSkip
             | TCIn
             | TCOut
             | TPrefix
-            | TPar
+            | TParOpen
+            | TParClose
             | TExtSel
             | TIntSel
             | TSeq
@@ -126,11 +134,11 @@ lexer ('(':cs)       = TOpen : (lexer cs)
 lexer (')':cs)       = TClose : (lexer cs)
 --lexer (',':cs)       = T
 lexer ('-':('>':cs)) = TPrefix : (lexer cs)
-lexer ('|':('|':cs)) = TPar : (lexer cs)
+lexer ('|':('>':cs)) = TInter : (lexer cs)
+lexer ('|':cs) = TParOpen : (lexPar cs)
 lexer ('[':(']':cs)) = TExtSel : (lexer cs)
 lexer ('/':('|':cs)) = TIntSel : (lexer cs)
 lexer (';':cs)       = TSeq : (lexer cs)
-lexer ('|':('>':cs)) = TInter : (lexer cs)
 lexer (c:cs)
         | isSpace c = lexer cs
         | c == '_' = case fstWord cs of
@@ -162,4 +170,11 @@ paren x = span (\c -> c/= ' ') x
 
 lexCom ('-':('}':cs)) = lexer cs
 lexCom (c:cs) = lexCom cs
+
+lexPar cs       = case span (\c -> c <> ',' && c <> '|') cs of
+                      ([],_) -> [] -- armar un conjunto vacio
+                      (w,('|':cs')) -> ((TEName w) : (TParClose : (lexer cs')))
+                      (w,(',':cs')) -> ((TEName w) : (TComma : (lexPar cs')))
+                      _ -> [] -- error
+
 }

@@ -9,7 +9,12 @@ module Main where
   import Data.Char
   import Data.List
   import qualified Data.Set as Set
-  import Control.Monad.Random                         -- cabal install monadrandom
+  import Control.Monad.Random                         
+  
+-- Installation
+-- 	 cabal install monadrandom
+--   cabal install hint
+--   ghc-pkg expose ghc
 
   
 -- -------------------
@@ -77,7 +82,7 @@ module Main where
   handleCmd st (LoadImp file) = return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
                                     (\sist -> maybe (putStrLn "Error: todavia no ha sido cargada la implementacion" >> return (Just st))
-                                                    (\impl -> do 
+                                                    (\impl -> eval env imp sist){-do 
                                                         let men = menu sist env
                                                         --print men
                                                         m <- getTrueEvents men impl
@@ -89,7 +94,8 @@ module Main where
                                                                               sist' <- eval sist e env impl
                                                                               --printProc sist'
                                                                               st' <- newSpec sist' env st
-                                                                              handleCmd st' Run) --return (Just st'))
+                                                                              handleCmd st' Run) --return (Just st'))-}
+															
                                                     imp)
                                     spec
   handleCmd st Quit = putStrLn "Adios!" >> return Nothing

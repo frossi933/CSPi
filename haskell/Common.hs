@@ -1,19 +1,23 @@
 module Common where
 
+    import qualified Data.Set as Set
+
     type Pred = String
     type Act = String
     type Id = String
     type Value = String
     type Exp = String
     
-    data Event = Out Id Pred | In Id Act | C Channel
+    data Event = Eps | In Id Pred | Out Id Act | C Channel
     data Channel = ComOut Id Value | ComIn Id Id | Com Id Value  deriving(Show) -- ComIn idEvento idVariable, Com es el resultado de la sincronizacion de dos canales...
 
     data Claus = CPred String String Pred         -- CPred evento proceso predicado
                | CAct String String Act          -- CAcc evento proceso accion
-    
+
+    type EvSet = Set.Set Event
     
     instance Eq Event where
+        (==) (Eps) (Eps)          = True
         (==) (Out n _) (Out n' _) = n == n'
         (==) (In n _) (In n' _)   = n == n'
         (==) (Out n _) (In n' _)  = n == n'
@@ -40,7 +44,7 @@ module Common where
         compare e e' = compare (nameOfEvent e) (nameOfEvent e')
         
     instance Eq ProcDef where
-        (==) (Def s p) (Def s' p') = s == s'
+        (==) (Def s e p) (Def s' e' p') = s == s'
         
     instance Show Event where
         show (In s _)  = show s
@@ -52,8 +56,8 @@ module Common where
               | Stop 
               | Ref String [Exp]
               | Prefix Event Proc 
-              | Parallel Proc Proc 
-              | ExtSel [Proc]
+              | Parallel EvSet Proc Proc 
+              | ExtSel Proc Proc
               | IntSel Proc Proc
               | Seq Proc Proc
               | Inter Proc Proc
