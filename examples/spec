@@ -4,4 +4,9 @@ DK_LAMPARA = on -> off -> DK_LAMPARA
 
 LAMP = press -> _on -> press -> _off -> LAMP
 
-SISTEMA = DK_BOTON || DK_LAMPARA || LAMP
+SISTEMA = ( DK_BOTON |{ }| DK_LAMPARA ) |{ on , off , press }| LAMP
+
+
+event on from DK_LAMPARA does onf
+event press from DK_BOTON occurs when pressf
+event off from DK_LAMPARA does offf

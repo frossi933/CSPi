@@ -16,7 +16,6 @@ import qualified Data.Set as Set
     SKIP        {TSkip}
     STOP        {TStop}
     PNAME       {TPName $$}
-    ENAME       {TEName $$}
     EONAME      {TEOName $$}
     EINAME      {TEIName $$}
     EXP         {TExp $$}
@@ -44,6 +43,7 @@ import qualified Data.Set as Set
     
 
 %left '[]' '/|' '|>' ';' 
+%left '|{' '}|'
 %right '->'
 %%
 
@@ -53,8 +53,8 @@ Stmt : Defs                                     { ($1, []) }
 Claus : Clau                                    { [$1] }
       | Clau Claus                              { $1:$2 }
       
-Clau : EVENT EINAME FROM PNAME OCCURS WHEN PRED { CPred $2 $4 $7 }
-     | EVENT EINAME FROM PNAME DOES ACT         { CAct $2 $4 $6 }
+Clau : EVENT EONAME FROM PNAME OCCURS WHEN PRED { CPred $2 $4 $7 }
+     | EVENT EONAME FROM PNAME DOES ACT         { CAct $2 $4 $6 }
 
 Defs : Def                                      { [$1] }
      | Def Defs                                 { $1:$2 }
@@ -82,7 +82,8 @@ Event   : EventIn                               { In $1 "" }
         | EventIn '?' VAR                       { C (ComIn $1 $3) }
         | EventIn '!' EXP                       { C (ComOut $1 $3) }
 
-EvSet   : Event                                 { Set.singleton $1 }
+EvSet   :                                       { Set.empty }
+        | Event                                 { Set.singleton $1 }
         | Event ',' EvSet                       { Set.insert $1 $3 }
         
 EventIn : EINAME                                { $1 }
@@ -94,7 +95,7 @@ RefProc : PNAME                                 { Ref $1 [] }
 
 {
 parseError :: [Token] -> a
-parseError _ = error "Parse error"
+parseError s = error ("Parse error"++(show s))
 
 data Token =  TSkip
             | TStop
@@ -104,7 +105,6 @@ data Token =  TSkip
             | TPName String
             | TEOName String
             | TEIName String
-            | TEName String
             | TExp String
             | TVar String
             | TPred String
@@ -123,7 +123,7 @@ data Token =  TSkip
             | TExtSel
             | TIntSel
             | TSeq
-            | TInter
+            | TInter deriving(Show)
 
 
 lexer :: String -> [Token]
@@ -132,10 +132,9 @@ lexer ('=':cs)       = TDef : (lexer cs)
 lexer ('{':('-':cs)) = lexCom cs
 lexer ('(':cs)       = TOpen : (lexer cs)
 lexer (')':cs)       = TClose : (lexer cs)
---lexer (',':cs)       = T
 lexer ('-':('>':cs)) = TPrefix : (lexer cs)
 lexer ('|':('>':cs)) = TInter : (lexer cs)
-lexer ('|':cs) = TParOpen : (lexPar cs)
+lexer ('|':('{':cs)) = TParOpen : (lexPar cs)
 lexer ('[':(']':cs)) = TExtSel : (lexer cs)
 lexer ('/':('|':cs)) = TIntSel : (lexer cs)
 lexer (';':cs)       = TSeq : (lexer cs)
@@ -143,7 +142,7 @@ lexer (c:cs)
         | isSpace c = lexer cs
         | c == '_' = case fstWord cs of
                         ("",cont) -> [] --Failed $ "Error de nombre de evento"
-                        ((n:ns),cont) -> (TEOName (n:ns)) : lexer cont                          -- lo guardo sin el "_", revisar...
+                        ((n:ns),cont) -> (TEIName (n:ns)) : lexer cont                          -- lo guardo sin el "_", revisar...
         | isAlpha c = lexWord (c:cs)
 lexer unknown =  []  --Failed $ "No se puede reconocer "++(show $ take 10 unknown)++ "..."
 
@@ -161,20 +160,22 @@ lexWord (c:cs)  | isUpper c = case fstWord (c:cs) of
                                 ("does", cont)   -> let (a, contt) = fstWord (dropWhile isSpace cont) in (TDoes : ((TAct a) : lexer contt))
                                 (e, ('?' : cont))  -> let (v, contt) = fstWord cont in [TEIName e, TCIn, TVar v]++ (lexer contt)
                                 (e, ('!' : cont))  -> let (exp, contt) = paren cont in [TEIName e, TCOut, TExp exp]++(lexer (tail contt))
-                                (e, cont)        -> (TEIName e) : lexer cont
+                                (e, cont)        -> (TEOName e) : lexer cont
                 
 fstWord = span (\c -> isAlpha c || c == '_' || isDigit c)
 
 paren ('(':rest) = span (\c -> c /= ')') rest           --(takeWhile (\c -> c /= ')') rest) ++ (tail $ dropWhile (\c -> c /= ')') rest)
 paren x = span (\c -> c/= ' ') x
 
+rmvSpc s = takeWhile (\c -> c /= ' ') (dropWhile (\c -> c == ' ') s)
+
 lexCom ('-':('}':cs)) = lexer cs
 lexCom (c:cs) = lexCom cs
 
-lexPar cs       = case span (\c -> c <> ',' && c <> '|') cs of
-                      ([],_) -> [] -- armar un conjunto vacio
-                      (w,('|':cs')) -> ((TEName w) : (TParClose : (lexer cs')))
-                      (w,(',':cs')) -> ((TEName w) : (TComma : (lexPar cs')))
+lexPar cs       = case span (\c -> c /= ',' && c /= '}') cs of
+                      ([],cs') -> (TParClose : (lexer cs')) -- armar un conjunto vacio
+                      (w,('}':('|':cs'))) -> ((TEIName (rmvSpc w)) : (TParClose : (lexer cs')))
+                      (w,(',':cs')) -> ((TEIName (rmvSpc w)) : (TComma : (lexPar cs')))
                       _ -> [] -- error
 
 }

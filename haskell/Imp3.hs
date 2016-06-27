@@ -6,8 +6,9 @@ module Imp3 where
     hay_item :: IO Bool
     hay_item = return True
 
-    prensar :: IO ()
-    prensar = putStrLn "Prensando..."
+    prensar :: IO String
+    prensar = do putStrLn "Prensando..."
+                 return "Prensado"
     
     item :: IO ()
     item = putStrLn "Nuevo Item..."

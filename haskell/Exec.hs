@@ -9,10 +9,10 @@ execAct :: Act -> Imp -> IO ()
 execAct a i = do r <- I.runInterpreter (execAct' a i)
                  case r of
                     Left err -> printInterpreterError err
-                    Right () -> return ()
+                    Right s -> return s
           
 execAct' a i = do I.loadModules [i]
-                  I.setTopLevelModules [takeWhile (/='.') i]
+                  I.setTopLevelModules [takeWhile (/='.') $ reverse $ takeWhile (/='/') $ reverse i]
                   I.setImportsQ [("Prelude", Nothing)]
                   res <- I.interpret a (I.as :: IO ())
                   liftIO res
@@ -24,21 +24,22 @@ execPred p i = do r <- I.runInterpreter (execPred' p i)
                     Right b -> b
                     
 execPred' p i = do I.loadModules [i]
-                   I.setTopLevelModules [takeWhile (/='.') i]
+                   I.setTopLevelModules [takeWhile (/='.') $ reverse $ takeWhile (/='/') $ reverse i]
                    I.setImportsQ [("Prelude", Nothing)]
                    res <- I.interpret p (I.as :: IO Bool)
                    return res
           
-evalExp :: Value -> Imp -> IO String
+evalExp :: Value -> Imp -> IO ()
 evalExp v i = do r <- I.runInterpreter (evalExp' v i)
                  case r of
-                    Left err -> printInterpreterError err >> return ""
-                    Right e -> return e
+                    Left err -> printInterpreterError err >> return ()
+                    Right e -> e
                     
+
 evalExp' v i = do I.loadModules [i]
-                  I.setTopLevelModules [takeWhile (/='.') i]
+                  I.setTopLevelModules [takeWhile (/='.') $ reverse $ takeWhile (/='/') $ reverse i]
                   I.setImportsQ [("Prelude", Nothing)]
-                  exp <- I.eval v
+                  exp <- I.interpret v (I.as :: IO ())
                   return exp
           
 say :: String -> I.Interpreter ()

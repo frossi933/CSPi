@@ -82,7 +82,9 @@ module Main where
   handleCmd st (LoadImp file) = return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
                                     (\sist -> maybe (putStrLn "Error: todavia no ha sido cargada la implementacion" >> return (Just st))
-                                                    (\impl -> eval env imp sist){-do 
+                                                    (\impl -> do res <- eval env impl sist
+                                                                 st' <- newSpec res env st
+                                                                 return (Just st')){-do 
                                                         let men = menu sist env
                                                         --print men
                                                         m <- getTrueEvents men impl
