@@ -5,6 +5,8 @@ import Common
 import Csp
 import Data.Char
 import qualified Data.Set as Set
+import Control.Concurrent
+import System.IO.Unsafe
 
 }
 
@@ -77,7 +79,7 @@ Proc    : STOP                                  { Stop }
         | Proc '|>' Proc                        { Inter $1 $3 }
 
        
-Event   : EventIn                               { In $1 "" }
+Event   : EventIn                               { In $1 (unsafePerformIO (do { v <- newEmptyMVar :: IO (MVar Bool) ; putMVar v True ; return v })) }
         | EventOut                              { Out $1 "" }
         | EventIn '?' VAR                       { C (ComIn $1 $3) }
         | EventIn '!' EXP                       { C (ComOut $1 $3) }

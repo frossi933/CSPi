@@ -6,10 +6,13 @@ module Main where
   import ParserCsp
   import Csp
   import Env
+  import Exec
   import Data.Char
   import Data.List
   import qualified Data.Set as Set
-  import Control.Monad.Random                         
+  import Control.Monad.Random
+  import Control.Monad -----------
+  import Control.Concurrent
   
 -- Installation
 -- 	 cabal install monadrandom
@@ -37,7 +40,8 @@ module Main where
               Cmd "help" "" (const Help) "Muestra un texto de ayuda con informacion del programa."]
 
   data State = S { spec :: Maybe Proc,
-                   env :: Env,
+                   vars :: PredMap,
+                   env :: ProcEnv,
                    imp :: Maybe Imp }
               
   main :: IO ()
@@ -51,7 +55,7 @@ module Main where
                putStrLn ""
                putStrLn "ingrese help para mas ayuda"
                putStrLn ""
-               loop (S Nothing envEmpty Nothing)
+               loop (S Nothing envEmpty envEmpty Nothing)
                
                
   interCmd :: String -> IO Command
@@ -65,39 +69,29 @@ module Main where
                                                return NoOp
                        
   handleCmd :: State -> Command -> IO (Maybe State)
-  handleCmd st (LoadSpec file) = do let f'= reverse(dropWhile isSpace (reverse file)) 
-                                    f <- readFile f'
-                                    (defs, claus) <- (cspparser . lexer) f
-                                    b <- chkNames defs
-                                    if b then (do let defs' = setPredAct defs claus
-                                                  env <- return $ envInit defs'
-                                                  sys <- sistema env
-                                                  printProc sys           -- sacar
-                                                  st' <- newSpec sys env st
-                                                  return (Just st'))
-                                         else (do putStrLn "Error: nombres repetidos en la definicion de procesos."
-                                                  return (Just st)) -- revusar
+  handleCmd st@(S {..}) (LoadSpec file) = do let f'= reverse(dropWhile isSpace (reverse file)) 
+                                             f <- readFile f'
+                                             (procs, claus) <- (cspparser . lexer) f
+                                             b <- chkNames procs
+                                             if b then (do predMap <- varsInit claus
+                                                           defs <- return $ defInit (setActAndVars procs claus predMap)
+                                                           sys <- sistema defs
+                                                           when debug $ printProc sys           -- sacar
+                                                           st' <- newSpec sys defs (S spec predMap env imp)
+                                                           putStrLn "Specification loaded successfully!"
+                                                           return (Just st'))
+                                                  else (do putStrLn "Error: nombres repetidos en la definicion de procesos."
+                                                           return (Just st)) -- revusar
+                                               
                                        
-                                       
-  handleCmd st (LoadImp file) = return (Just (newImp file st))
+  handleCmd st (LoadImp file) = do putStrLn "Implementation loaded successfully!"
+                                   return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
                                     (\sist -> maybe (putStrLn "Error: todavia no ha sido cargada la implementacion" >> return (Just st))
-                                                    (\impl -> do res <- eval env impl sist
+                                                    (\impl -> do forkIO (forever (updatePreds vars impl))
+                                                                 res <- eval env impl sist
                                                                  st' <- newSpec res env st
-                                                                 return (Just st')){-do 
-                                                        let men = menu sist env
-                                                        --print men
-                                                        m <- getTrueEvents men impl
-                                                        --print m                                            -- sacar
-                                                        if Set.null m then handleCmd  st Quit
-                                                                      else do e <- evalRandIO (do nr <- getRandomR (0, (Set.size m)-1)
-                                                                                                  return $ Set.elemAt nr m)           -- random
-                                                                              print e                                            -- sacar
-                                                                              sist' <- eval sist e env impl
-                                                                              --printProc sist'
-                                                                              st' <- newSpec sist' env st
-                                                                              handleCmd st' Run) --return (Just st'))-}
-															
+                                                                 return (Just st'))															
                                                     imp)
                                     spec
   handleCmd st Quit = putStrLn "Adios!" >> return Nothing
@@ -105,15 +99,22 @@ module Main where
   handleCmd st NoOp = return (Just st)
   
      
-  newSpec :: Proc -> Env -> State -> IO State
+  newSpec :: Proc -> ProcEnv -> State -> IO State
   newSpec Stop e st@(S {..}) = do putStrLn "Error: especificacion erronea del sistema"
-                                  return (S Nothing envEmpty imp)
-  newSpec p e st@(S {..}) = return (S (Just p) e imp)
+                                  return (S Nothing vars envEmpty imp)
+  newSpec p e st@(S {..}) = return (S (Just p) vars e imp)
   
   newImp :: Imp -> State -> State
-  newImp file st@(S {..}) = S spec env (Just file)
---  parseIO :: String -> (String -> ParseResult a) -> String -> IO (Maybe a)
---  parseIO f p x = case p x of
---                       Failed e  -> do putStrLn (f++": "++e) 
---                                       return Nothing
---                       Ok r      -> return (Just r)
+  newImp file st@(S {..}) = S spec vars env (Just file)
+
+  updatePreds :: PredMap -> Imp -> IO ()
+  updatePreds preds imp = updatePreds' (envElems preds) imp
+
+  updatePreds' [] imp = return ()
+  updatePreds' ((pred, mvar):ps) imp = do b <- execPred pred imp
+                                          when debug $ print "updating preds..."
+                                          takeMVar mvar
+                                          putMVar mvar b
+                                          updatePreds' ps imp
+
+--                            foldl (\a (pred, mvar) -> (do { b <- execPred pred imp ; takeMVar mvar ; putMVar mvar b } )) (return () :: IO ()) (envElems preds)

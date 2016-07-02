@@ -1,14 +1,29 @@
 module Common where
 
     import qualified Data.Set as Set
+    import Control.Concurrent
+--    import Control.Monad
 
     type Pred = String
     type Act = String
     type Id = String
     type Value = String
     type Exp = String
+    type BVar = MVar Bool
+
+    initial_state_mvar :: Bool
+    initial_state_mvar = False
+
+----------------- DEBUG FLAG
+    debug :: Bool
+    debug = True
+
+    isTrue :: BVar -> IO Bool
+    isTrue bvar = do b <- takeMVar bvar
+                     putMVar bvar b
+                     return b
     
-    data Event = Eps | In Id Pred | Out Id Act | C Channel
+    data Event = Eps | In Id BVar | Out Id Act | C Channel
     data Channel = ComOut Id Value | ComIn Id Id | Com Id Value  deriving(Show) -- ComIn idEvento idVariable, Com es el resultado de la sincronizacion de dos canales...
 
     data Claus = CPred String String Pred         -- CPred evento proceso predicado

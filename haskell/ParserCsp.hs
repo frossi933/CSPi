@@ -5,6 +5,8 @@ import Common
 import Csp
 import Data.Char
 import qualified Data.Set as Set
+import Control.Concurrent
+import System.IO.Unsafe
 import Control.Applicative(Applicative(..))
 import Control.Monad (ap)
 
@@ -528,7 +530,7 @@ happyReduction_22 _ _ _  = notHappyAtAll
 happyReduce_23 = happySpecReduce_1  11 happyReduction_23
 happyReduction_23 (HappyAbsSyn13  happy_var_1)
 	 =  HappyAbsSyn11
-		 (In happy_var_1 ""
+		 (In happy_var_1 (unsafePerformIO (do { v <- newEmptyMVar :: IO (MVar Bool) ; putMVar v True ; return v }))
 	)
 happyReduction_23 _  = notHappyAtAll 
 
