@@ -18,12 +18,8 @@ module Common where
     debug :: Bool
     debug = True
 
-    isTrue :: BVar -> IO Bool
-    isTrue bvar = do b <- takeMVar bvar
-                     putMVar bvar b
-                     return b
     
-    data Event = Eps | In Id BVar | Out Id Act | C Channel
+    data Event = Eps | E Id (Maybe BVar) (Maybe Act) | C Channel
     data Channel = ComOut Id Value | ComIn Id Id | Com Id Value  deriving(Show) -- ComIn idEvento idVariable, Com es el resultado de la sincronizacion de dos canales...
 
     data Claus = CPred String String Pred         -- CPred evento proceso predicado
@@ -33,10 +29,7 @@ module Common where
     
     instance Eq Event where
         (==) (Eps) (Eps)          = True
-        (==) (Out n _) (Out n' _) = n == n'
-        (==) (In n _) (In n' _)   = n == n'
-        (==) (Out n _) (In n' _)  = n == n'
-        (==) (In n _) (Out n' _)  = n == n'
+        (==) (E id _ _) (E id' _ _) = id == id'
         (==) (C c) (C c')         = c == c'
         (==) _ _                  = False
 
@@ -58,14 +51,13 @@ module Common where
         
     instance Show Event where
         show Eps       = "eps"
-        show (In s _)  = "-" ++ show s
-        show (Out s _) = show s
+        show (E id _ _) = show id
         show (C c)     = show c
  
     instance Ord Event where
         compare v t = compare (nameOfEvent v) (nameOfEvent t)
 
-                                       
+              
     data ProcDef = Def String [Exp] Proc 
     data Proc = Skip 
               | Stop 
@@ -90,10 +82,9 @@ module Common where
         show (Seq p q) = (show p) ++ " ; " ++ (show q)
         show (Inter p q) = (show p) ++ " |> " ++ (show q)
 
-    nameOfEvent (In s _)   = s
-    nameOfEvent (Out s _)  = s
-    nameOfEvent (C c)      = nameOfCom c
-    nameOfEvent Eps        = "eps"
+    nameOfEvent (E e _ _) = e
+    nameOfEvent (C c)     = nameOfCom c
+    nameOfEvent Eps       = "eps"
 
     nameOfCom (ComIn s _)  = s
     nameOfCom (ComOut s _) = s

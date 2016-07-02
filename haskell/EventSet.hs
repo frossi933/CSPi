@@ -16,14 +16,18 @@ module EventSet where
 
     singleton = Set.singleton
 
-    insert v@(In _ _) s = if Set.member v s then s else Set.insert v s
-    insert v s = Set.insert v s -- This replaces the old one if it exists
+    insert v s = intersection (Set.singleton v) s
 
     intersection s q = if (Set.null s || Set.null q) then Set.empty
-                                                     else let s' = Set.filter (filtOut q) s
-                                                          in Set.fold (\v q' -> if Set.member v s then insert v q' else q') s' q
-                            where filtOut r v@(Out _ _) = Set.member v r
-                                  filtOut _ _ = False
+                                                     else Set.fold (\v r -> case Set.lookupIndex v q of
+                                                                                Nothing -> r
+                                                                                Just i -> Set.insert (mergeEvents v (Set.elemAt i q)) r)
+                                                                   Set.empty
+                                                                   s
+                            where mergeEvents (E id1 v1 p1) (E id2 v2 p2) = E id1 (max v1 v2) (max p1 p2)
+                                  mergeEvents v t = v
+                                  max Nothing v = v
+                                  max (Just v) _ = Just v
 
     union s q = Set.fold (\v s -> insert v s) q s
 

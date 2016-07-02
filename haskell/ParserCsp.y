@@ -18,8 +18,7 @@ import System.IO.Unsafe
     SKIP        {TSkip}
     STOP        {TStop}
     PNAME       {TPName $$}
-    EONAME      {TEOName $$}
-    EINAME      {TEIName $$}
+    ENAME       {TEName $$}
     EXP         {TExp $$}
     VAR         {TVar $$}
     PRED        {TPred $$}
@@ -55,8 +54,8 @@ Stmt : Defs                                     { ($1, []) }
 Claus : Clau                                    { [$1] }
       | Clau Claus                              { $1:$2 }
       
-Clau : EVENT EONAME FROM PNAME OCCURS WHEN PRED { CPred $2 $4 $7 }
-     | EVENT EONAME FROM PNAME DOES ACT         { CAct $2 $4 $6 }
+Clau : EVENT ENAME FROM PNAME OCCURS WHEN PRED  { CPred $2 $4 $7 }
+     | EVENT ENAME FROM PNAME DOES ACT          { CAct $2 $4 $6 }
 
 Defs : Def                                      { [$1] }
      | Def Defs                                 { $1:$2 }
@@ -79,18 +78,15 @@ Proc    : STOP                                  { Stop }
         | Proc '|>' Proc                        { Inter $1 $3 }
 
        
-Event   : EventIn                               { In $1 (unsafePerformIO (do { v <- newEmptyMVar :: IO (MVar Bool) ; putMVar v True ; return v })) }
-        | EventOut                              { Out $1 "" }
-        | EventIn '?' VAR                       { C (ComIn $1 $3) }
-        | EventIn '!' EXP                       { C (ComOut $1 $3) }
+Event   : EventName                             { E $1 Nothing Nothing } -- In $1 (unsafePerformIO (do { v <- newEmptyMVar :: IO (MVar Bool) ; putMVar v True ; return v })) }
+        | EventName '?' VAR                       { C (ComIn $1 $3) }
+        | EventName '!' EXP                       { C (ComOut $1 $3) }
 
 EvSet   :                                       { Set.empty }
         | Event                                 { Set.singleton $1 }
         | Event ',' EvSet                       { Set.insert $1 $3 }
         
-EventIn : EINAME                                { $1 }
-
-EventOut: EONAME                                { $1 }
+EventName : ENAME                                { $1 }
 
 RefProc : PNAME                                 { Ref $1 [] }
         | PNAME '(' Args ')'                    { Ref $1 $3 }
@@ -105,8 +101,7 @@ data Token =  TSkip
             | TClose
             | TComma
             | TPName String
-            | TEOName String
-            | TEIName String
+            | TEName String
             | TExp String
             | TVar String
             | TPred String
@@ -142,11 +137,8 @@ lexer ('/':('|':cs)) = TIntSel : (lexer cs)
 lexer (';':cs)       = TSeq : (lexer cs)
 lexer (c:cs)
         | isSpace c = lexer cs
-        | c == '_' = case fstWord cs of
-                        ("",cont) -> [] --Failed $ "Error de nombre de evento"
-                        ((n:ns),cont) -> (TEIName (n:ns)) : lexer cont                          -- lo guardo sin el "_", revisar...
         | isAlpha c = lexWord (c:cs)
-lexer unknown =  []  --Failed $ "No se puede reconocer "++(show $ take 10 unknown)++ "..."
+        | otherwise =  []  --Failed $ "No se puede reconocer "++(show $ take 10 unknown)++ "..."
 
 lexWord [] = []
 lexWord (c:cs)  | isUpper c = case fstWord (c:cs) of
@@ -160,9 +152,9 @@ lexWord (c:cs)  | isUpper c = case fstWord (c:cs) of
                                 ("occurs", cont) -> TOccurs : lexer cont
                                 ("when", cont)   -> let (p, contt) = fstWord (dropWhile isSpace cont) in (TWhen : ((TPred p) : lexer contt))
                                 ("does", cont)   -> let (a, contt) = fstWord (dropWhile isSpace cont) in (TDoes : ((TAct a) : lexer contt))
-                                (e, ('?' : cont))  -> let (v, contt) = fstWord cont in [TEIName e, TCIn, TVar v]++ (lexer contt)
-                                (e, ('!' : cont))  -> let (exp, contt) = paren cont in [TEIName e, TCOut, TExp exp]++(lexer (tail contt))
-                                (e, cont)        -> (TEOName e) : lexer cont
+                                (e, ('?' : cont))  -> let (v, contt) = fstWord cont in [TEName e, TCIn, TVar v]++ (lexer contt)
+                                (e, ('!' : cont))  -> let (exp, contt) = paren cont in [TEName e, TCOut, TExp exp]++(lexer (tail contt))
+                                (e, cont)        -> (TEName e) : lexer cont
                 
 fstWord = span (\c -> isAlpha c || c == '_' || isDigit c)
 
@@ -176,8 +168,8 @@ lexCom (c:cs) = lexCom cs
 
 lexPar cs       = case span (\c -> c /= ',' && c /= '}') cs of
                       ([],cs') -> (TParClose : (lexer cs')) -- armar un conjunto vacio
-                      (w,('}':('|':cs'))) -> ((TEIName (rmvSpc w)) : (TParClose : (lexer cs')))
-                      (w,(',':cs')) -> ((TEIName (rmvSpc w)) : (TComma : (lexPar cs')))
+                      (w,('}':('|':cs'))) -> ((TEName (rmvSpc w)) : (TParClose : (lexer cs')))
+                      (w,(',':cs')) -> ((TEName (rmvSpc w)) : (TComma : (lexPar cs')))
                       _ -> [] -- error
 
 }
