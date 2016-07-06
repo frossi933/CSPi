@@ -1,8 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Common where
 
     import qualified Data.Set as Set
     import Control.Concurrent
---    import Control.Monad
+    import System.IO.Unsafe
 
     type Pred = String
     type Act = String
@@ -57,6 +58,8 @@ module Common where
     instance Ord Event where
         compare v t = compare (nameOfEvent v) (nameOfEvent t)
 
+    instance Show BVar where
+        show v = unsafePerformIO ( do { b <- takeMVar v ; putMVar v b ; return $ show b })
               
     data ProcDef = Def String [Exp] Proc 
     data Proc = Skip 

@@ -55,9 +55,13 @@ module Csp where
     menu Stop = return Set.empty
     menu Skip = return Set.empty
     menu (Prefix v@(E _ Nothing _) _) = return $ Set.singleton v
-    menu (Prefix v@(E _ (Just bvar) _) _) = do --when debug $ print ("Checking mvar state of "++id)
-                                               b <- readMVar bvar
-                                               if b then (return $ Set.singleton v) else return Set.empty
+    menu (Prefix v@(E id (Just bvar) _) _) = do 
+                                                b <- takeMVar bvar
+                                                when debug $ print ("Checking mvar state of "++id++(show b))
+                                                --threadDelay 1000000
+                                                --putMVar bvar b
+                                                --when debug $ print ("Mvar checked")
+                                                if b then (return $ Set.singleton v) else return Set.empty
     menu (ExtSel Skip p) = do mp <- menu p
                               return $ Set.insert Eps mp
     menu (ExtSel p Skip) = do mp <- menu p
@@ -196,7 +200,7 @@ module Csp where
     eval e i p = do m <- menu p
                     if Set.null m then eval e i p                   -- waits for available events 
                                   else do v <- choose m
-                                          when debug $ putStrLn ("Evento: " ++ show v ++ " -- Proceso: " ++ show p)
+                                          when debug $ putStrLn ("Menu: "++ show m ++ " Evento: " ++ show v ++ " -- Proceso: " ++ show p)
                                           case v of
                                             E _ Nothing Nothing -> case smallstep_eval e p v of
                                                                        Nothing -> do putStrLn "END: Internal error"
@@ -227,33 +231,35 @@ module Csp where
 
     setActAndVars :: [ProcDef] -> [Claus] -> PredMap -> [ProcDef]
     setActAndVars defs [] _ = defs
-    setActAndVars defs ((CPred e p pr):cs) vars = setActAndVars (map (\(Def name exp proc) -> Def name exp (setVarProc e vars proc)) defs) cs vars
-    setActAndVars defs ((CAct e p a):cs) vars = setActAndVars (map (\(Def name exp proc) -> Def name exp (setActProc e a proc)) defs) cs vars
+    setActAndVars defs ((CPred id _ pred):cs) vars = setActAndVars (map (\(Def name exp proc) -> Def name exp (setVarProc id vars proc)) defs) cs vars
+    setActAndVars defs ((CAct id _ act):cs) vars = setActAndVars (map (\(Def name exp proc) -> Def name exp (setActProc id act proc)) defs) cs vars
     
-    
+    setVarProc :: String -> PredMap -> Proc -> Proc
     setVarProc _ _ Skip = Skip
     setVarProc _ _ Stop = Stop
     setVarProc _ _ (Ref name exp) = Ref name exp
-    setVarProc id vars (Prefix (E id' Nothing act) p) = if id==id' then case envGetVar id vars of
-                                                                Just mvar -> Prefix (E id (Just mvar) act) p
+    setVarProc id vars (Prefix e@(E id' Nothing act) p) = if id==id' then case envGetVar id vars of
+                                                                Just mvar -> Prefix (E id (Just mvar) act) (setVarProc id vars p)
                                                                 Nothing -> error $ "No existe MVar correspondiente a "++id
-                                                          else Prefix (E id' Nothing act) (setVarProc id vars p)
-    setVarProc id vars (Prefix (E id' (Just mvar) act) p) = if id==id' then error $ "Ya existe MVar correspondiente a "++id
-                                                                       else Prefix (E id' (Just mvar) act) (setVarProc id vars p)
+                                                                     else Prefix e (setVarProc id vars p)
+    setVarProc id vars (Prefix e@(E id' (Just mvar) act) p) = if id==id' then error $ "Ya existe MVar correspondiente a "++id
+                                                                         else Prefix e (setVarProc id vars p)
+    setVarProc id vars (Prefix e p) = Prefix e (setVarProc id vars p)
     setVarProc id pr (Parallel s l r) = Parallel s (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (ExtSel p q) = ExtSel (setVarProc id pr p) (setVarProc id pr q) 
     setVarProc id pr (IntSel l r) = IntSel (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (Seq l r) = Seq (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (Inter l r) = Inter (setVarProc id pr l) (setVarProc id pr r)
 
+    setActProc :: String -> Act -> Proc -> Proc
     setActProc _ _ Skip = Skip
     setActProc _ _ Stop = Stop
     setActProc _ _ (Ref name exp) = Ref name exp
-    setActProc id act (Prefix (E id' v Nothing) p) = if id==id' then Prefix (E id v (Just act)) p
-                                                                else Prefix (E id v Nothing) (setActProc id act p)
-    setActProc id act (Prefix (E id' v (Just act')) p) = if id==id' then error $ "Ya existe accion para evento "++id
-                                                                    else Prefix (E id' v (Just act')) (setActProc id act p)
-    setActProc id act (Prefix v p) = Prefix v (setActProc id act p)
+    setActProc id act (Prefix e@(E id' v Nothing) p) = if id==id' then Prefix (E id v (Just act)) (setActProc id act p)
+                                                                  else Prefix e (setActProc id act p)
+    setActProc id act (Prefix e@(E id' v (Just act')) p) = if id==id' then error $ "Ya existe accion para evento "++id
+                                                                      else Prefix e (setActProc id act p)
+    setActProc id act (Prefix e p) = Prefix e (setActProc id act p)
     setActProc id a (Parallel s l r) = Parallel s (setActProc id a l) (setActProc id a r)
     setActProc id a (ExtSel p q) = ExtSel (setActProc id a p) (setActProc id a q)
     setActProc id a (IntSel l r) = IntSel (setActProc id a l) (setActProc id a r)
@@ -268,7 +274,7 @@ module Csp where
 ----------------------------
     
 
-    printEvent (E id v a) = "_event_"++id                           ------
+    printEvent (E id v a) = "_event_("++id++","++(show v)++","++(show a)++")"                           ------
     printEvent (C (ComOut n m)) = "_chan_ "++n++"!"++m++" "
     printEvent (C (ComIn n m)) = "_chan_ "++n++"?"++m++" "
     printEvent (C (Com n m)) = "_chan_ "++n++"."++m++" "

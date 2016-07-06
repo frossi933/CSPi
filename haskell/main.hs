@@ -74,9 +74,11 @@ module Main where
                                              (procs, claus) <- (cspparser . lexer) f
                                              b <- chkNames procs
                                              if b then (do predMap <- varsInit claus
-                                                           defs <- return $ defInit (setActAndVars procs claus predMap)
+                                                           let procs' = setActAndVars procs claus predMap
+                                                           defs <- return $ defInit procs'
                                                            sys <- sistema defs
                                                            when debug $ printProc sys           -- sacar
+                                                           when debug $ printDefs procs'
                                                            st' <- newSpec sys defs (S spec predMap env imp)
                                                            putStrLn "Specification loaded successfully!"
                                                            return (Just st'))
@@ -88,7 +90,7 @@ module Main where
                                    return (Just (newImp file st))
   handleCmd st@(S {..}) Run = maybe (putStrLn "Error: todavia no ha sido cargada la especificacion" >> return (Just st))
                                     (\sist -> maybe (putStrLn "Error: todavia no ha sido cargada la implementacion" >> return (Just st))
-                                                    (\impl -> do forkIO (forever (updatePreds vars impl))
+                                                    (\impl -> do forkIO (forever (do { updatePreds vars impl}))
                                                                  res <- eval env impl sist
                                                                  st' <- newSpec res env st
                                                                  return (Just st'))															
@@ -111,10 +113,10 @@ module Main where
   updatePreds preds imp = updatePreds' (envElems preds) imp
 
   updatePreds' [] imp = return ()
-  updatePreds' ((pred, mvar):ps) imp = do b <- execPred pred imp
-                                          when debug $ print "updating preds..."
-                                          takeMVar mvar
-                                          putMVar mvar b
+  updatePreds' ((pred, mvar):ps) imp = do forkIO (do b <- execPred pred imp
+                                                     --takeMVar mvar
+                                                     --threadDelay 1000000
+                                                     putMVar mvar b
+                                                     when debug $ print ("updated pred "++pred++(show b)))
                                           updatePreds' ps imp
 
---                            foldl (\a (pred, mvar) -> (do { b <- execPred pred imp ; takeMVar mvar ; putMVar mvar b } )) (return () :: IO ()) (envElems preds)

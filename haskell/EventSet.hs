@@ -16,7 +16,9 @@ module EventSet where
 
     singleton = Set.singleton
 
-    insert v s = intersection (Set.singleton v) s
+    insert v s = case Set.lookupIndex v s of
+                    Nothing -> Set.insert v s
+                    Just i -> Set.insert (mergeEvents v (Set.elemAt i s)) s
 
     intersection s q = if (Set.null s || Set.null q) then Set.empty
                                                      else Set.fold (\v r -> case Set.lookupIndex v q of
@@ -24,10 +26,12 @@ module EventSet where
                                                                                 Just i -> Set.insert (mergeEvents v (Set.elemAt i q)) r)
                                                                    Set.empty
                                                                    s
-                            where mergeEvents (E id1 v1 p1) (E id2 v2 p2) = E id1 (max v1 v2) (max p1 p2)
-                                  mergeEvents v t = v
-                                  max Nothing v = v
-                                  max (Just v) _ = Just v
+    
+    mergeEvents (E id1 v1 p1) (E id2 v2 p2) = E id1 (maxMaybe v1 v2) (maxMaybe p1 p2)
+    mergeEvents v t = v
+
+    maxMaybe Nothing v = v
+    maxMaybe (Just v) _ = Just v
 
     union s q = Set.fold (\v s -> insert v s) q s
 

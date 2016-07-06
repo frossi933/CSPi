@@ -78,15 +78,15 @@ Proc    : STOP                                  { Stop }
         | Proc '|>' Proc                        { Inter $1 $3 }
 
        
-Event   : EventName                             { E $1 Nothing Nothing } -- In $1 (unsafePerformIO (do { v <- newEmptyMVar :: IO (MVar Bool) ; putMVar v True ; return v })) }
-        | EventName '?' VAR                       { C (ComIn $1 $3) }
-        | EventName '!' EXP                       { C (ComOut $1 $3) }
+Event   : EventName                             { E $1 Nothing Nothing }
+        | EventName '?' VAR                     { C (ComIn $1 $3) }
+        | EventName '!' EXP                     { C (ComOut $1 $3) }
 
 EvSet   :                                       { Set.empty }
         | Event                                 { Set.singleton $1 }
         | Event ',' EvSet                       { Set.insert $1 $3 }
         
-EventName : ENAME                                { $1 }
+EventName : ENAME                               { $1 }
 
 RefProc : PNAME                                 { Ref $1 [] }
         | PNAME '(' Args ')'                    { Ref $1 $3 }
