@@ -109,14 +109,4 @@ module Main where
   newImp :: Imp -> State -> State
   newImp file st@(S {..}) = S spec vars env (Just file)
 
-  updatePreds :: PredMap -> Imp -> IO ()
-  updatePreds preds imp = updatePreds' (envElems preds) imp
-
-  updatePreds' [] imp = return ()
-  updatePreds' ((pred, mvar):ps) imp = do forkIO (do b <- execPred pred imp
-                                                     --takeMVar mvar
-                                                     --threadDelay 1000000
-                                                     putMVar mvar b
-                                                     when debug $ print ("updated pred "++pred++(show b)))
-                                          updatePreds' ps imp
 

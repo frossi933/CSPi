@@ -1,10 +1,33 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Exec where
 
 import Common
-import Data.List
-import GhcMonad            (liftIO)
-import qualified Language.Haskell.Interpreter as I
+--import Data.List
+--import GhcMonad            (liftIO)
+import Language.Haskell.TH hiding (Pred)
+import Language.Haskell.TH.Syntax hiding (Pred)
 
+import AddTopDecls
+
+
+
+
+--var :: String
+--var = "h"
+
+h :: Int -> Int
+h = (+1)
+
+f :: IO Int
+f = do --v <- var
+       return ($(dyn var) 1)
+
+--execAct :: Act -> Imp -> IO ()
+--execAct a _ = $(importAct a)
+
+--execPred :: Pred -> Imp -> IO Bool
+--execPred p _ = $(importPred p)
+{-
 execAct :: Act -> Imp -> IO ()
 execAct a i = do r <- I.runInterpreter (execAct' a i)
                  case r of
@@ -47,7 +70,7 @@ say = liftIO . putStrLn
 
 printInterpreterError :: I.InterpreterError -> IO ()
 printInterpreterError e = putStrLn $ "Ups... " ++ (show e)
-
+-}
 {-
 
 import Common

@@ -2,7 +2,6 @@
 module ParserCsp where
 
 import Common
-import Csp
 import Data.Char
 import qualified Data.Set as Set
 import Control.Concurrent

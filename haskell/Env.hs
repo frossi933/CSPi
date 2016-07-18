@@ -1,19 +1,22 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Env where
 
     import qualified Data.Map as Map
+    import Data.String
     import Common
-    import Control.Concurrent
-    
-    type ProcEnv = Map.Map String Proc
-    type PredMap = Map.Map String (Pred, MVar Bool)
+    import Imp
 
+    import Language.Haskell.TH  (dyn,listE)
+    import Control.Concurrent
+  
+    type ProcEnv = Map.Map String Proc
+    type PredMap = Map.Map String (Pred, BVar)
+    type ActMap = Map.Map String Act
 
 
 --    envInsert :: String -> Proc -> Env -> Env
     envInsert = Map.insert
     
---    envLookup :: String -> Env -> Maybe Proc
---    envLookup = Map.lookup
     
     envGetRef :: String -> [Exp] -> ProcEnv -> Maybe Proc
     envGetRef name exp env = case Map.lookup name env of
@@ -21,20 +24,30 @@ module Env where
                                   Nothing -> Nothing
 
     envGetVar st env = maybe Nothing (Just . snd) (Map.lookup st env)
+
+    envGetAct st env = Map.lookup st env
     
 --    envEmpty :: Env
     envEmpty = Map.empty
 
+    envElems :: PredMap -> [(Pred, BVar)]
     envElems = Map.elems
     
     defInit :: [ProcDef] -> ProcEnv
     defInit ds = foldl (\e (Def name _ p) -> envInsert name p e) envEmpty ds
 
-    varsInit :: [Claus] -> IO PredMap
-    varsInit cs = varsInit' cs envEmpty
 
-    varsInit' [] env = return env
-    varsInit' ((CPred event proc pred) : cs) env = do mvar <- newEmptyMVar
-                                                      putMVar mvar initial_state_mvar
-                                                      varsInit' cs (envInsert event (pred, mvar) env)
-    varsInit' (_ : cs) env = varsInit' cs env
+    actInit :: IO ActMap
+    actInit = do let actList' = $(listE (map (dyn . snd) actNames))
+                 let actList = zip (map fst actNames) actList'
+                 return $ Map.fromList actList
+
+    predInit :: IO PredMap
+    predInit = do let predList' = $(listE (map (dyn . snd) predNames))
+                  let predList = zip (map fst predNames) predList'
+                  predInit' predList envEmpty                     
+
+    predInit' [] env = return env
+    predInit' ((event, pred) : fs) env = do mvar <- newEmptyMVar
+                                            putMVar mvar initial_state_mvar
+                                            predInit' fs (envInsert event (pred, mvar) env)

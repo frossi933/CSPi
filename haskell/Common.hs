@@ -4,9 +4,12 @@ module Common where
     import qualified Data.Set as Set
     import Control.Concurrent
     import System.IO.Unsafe
+    import System.IO
 
-    type Pred = String
-    type Act = String
+    import System.Environment
+
+    type Pred = IO Bool
+    type Act = IO ()
     type Id = String
     type Value = String
     type Exp = String
@@ -15,16 +18,27 @@ module Common where
     initial_state_mvar :: Bool
     initial_state_mvar = False
 
+    var :: String
+    var = unsafePerformIO (getLine)
+
 ----------------- DEBUG FLAG
     debug :: Bool
-    debug = True
+    debug = False
+
+    predNames :: [(String, String)]
+    predNames = unsafePerformIO (do f <- readFile "pred.aux"
+                                    return $ (map (\l -> let (l1,l2)=span (/=' ') l in (l1,drop 1 l2)) (lines f)))
+
+    actNames :: [(String, String)]
+    actNames = unsafePerformIO (do f <- readFile "act.aux"
+                                   return $ (map (\l -> let (l1,l2)=span (/=' ') l in (l1,drop 1 l2)) (lines f)))
 
     
     data Event = Eps | E Id (Maybe BVar) (Maybe Act) | C Channel
     data Channel = ComOut Id Value | ComIn Id Id | Com Id Value  deriving(Show) -- ComIn idEvento idVariable, Com es el resultado de la sincronizacion de dos canales...
 
-    data Claus = CPred String String Pred         -- CPred evento proceso predicado
-               | CAct String String Act          -- CAcc evento proceso accion
+    data Claus = CPred String String String         -- CPred evento proceso predicado
+               | CAct String String String          -- CAcc evento proceso accion
 
     type EvSet = Set.Set Event
     
