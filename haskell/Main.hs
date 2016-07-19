@@ -9,6 +9,11 @@ module Main where
     import Control.Monad
     import Data.Char
 
+-- Installation
+-- 	 cabal install monadrandom
+--   cabal install hint
+--   ghc-pkg expose ghc
+
     main :: IO ()
     main = do args <- getArgs
               let specPath = args !! 0

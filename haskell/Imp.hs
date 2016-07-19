@@ -1,10 +1,10 @@
 module Imp where
 
-    pressf :: IO Bool
-    pressf = return True
-
     pressf2 :: IO Bool
-    pressf2 = do --print "waiting char..."
+    pressf2 = return True
+
+    pressf :: IO Bool
+    pressf = do --print "waiting char..."
                 c <- getChar
                 return (c == 'p')
 

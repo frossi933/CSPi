@@ -12,7 +12,7 @@ module Csp where
     import Control.Monad
     import Control.Concurrent
     import System.Random
-    import System.Environment
+
   
 
     chkNames :: [ProcDef] -> IO Bool
