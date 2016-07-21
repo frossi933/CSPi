@@ -1,9 +1,17 @@
-DK_BOTON1 = _press1 -> DK_BOTON1
+DK_BOTON1 = press1 -> DK_BOTON1
 
-DK_BOTON2 = _press2 -> DK_BOTON2
+DK_BOTON2 = press2 -> DK_BOTON2
 
 DK_LAMPARA = on -> off -> DK_LAMPARA
 
-LAMP = press1 -> _on -> press1 -> _off -> LAMP [] press2 -> _on -> press2 -> _off -> LAMP
+LAMP = press1 -> on -> press1 -> off -> LAMP [] press2 -> on -> press2 -> off -> LAMP
 
-SISTEMA = DK_BOTON1 || DK_BOTON2 || DK_LAMPARA || LAMP
+DKS = DK_BOTON1 |{ }| DK_BOTON2 |{ }| DK_LAMPARA
+
+SISTEMA = DKS |{ press1,press2,on,off }| LAMP
+
+
+event press1 from DK_BOTON1 occurs when press1f
+event press2 from DK_BOTON2 occurs when press2f
+event on from DK_LAMPARA dows onf
+event off from DK_LAMPARA dows offf

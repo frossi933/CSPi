@@ -3,7 +3,7 @@ welcome="BIENVENIDO AL INTERPRETE DE CSP\n===============================\n\ning
 prompt=":>"
 help[0]="loadSpec <file> Carga la especificacion CSP del sistema."
 help[1]="loadImp <file> Carga la implementacion de los predicados y acciones del sistema."
-help[2]="compile Realiza la compilacion del interprete junto con la especificacion e implementacion ya cargados."
+help[2]="compile Realiza la compilacion del interprete junto con la especificacion e implementacion ya cargados. Con -d se compila en el modo debug"
 help[3]="run Comienza la ejecucion de la especificacion y la implementacion previamente compilados."
 help[4]="quit Cierra el programa."
 help[5]="help Muestra un texto de ayuda con informacion del programa."
@@ -28,7 +28,13 @@ while $NO_EXIT ; do
             then 
                 if [ "$imp" != "" ]
                 then
-                    ghc Main.hs $imp -threaded --make -o csp
+                    flag=`echo $input | awk -F ' ' '{print $2}'`
+                    if [ "$flag" = "-d" ]
+                    then
+                        ghc -cpp -DDEBUG Main.hs $imp -threaded --make -o csp
+                    else
+                        ghc -cpp Main.hs $imp -threaded --make -o csp
+                    fi
                     COMPILED=true
                 else
                     echo "Implementacion no cargada."

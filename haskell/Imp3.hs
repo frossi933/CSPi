@@ -1,14 +1,21 @@
-module Imp3 where
+-- no importa el nombre del archivo, pero el modulo debe llamarse Imp
+module Imp where
 
-    boton_ab :: IO Bool
-    boton_ab = return False
+    pressf :: IO Bool
+    pressf = return True
 
-    hay_item :: IO Bool
-    hay_item = return True
+    pressf2 :: IO Bool
+    pressf2 = do --print "waiting char..."
+                c <- getChar
+                return (c == 'p')
 
-    prensar :: IO String
-    prensar = do putStrLn "Prensando..."
-                 return "Prensado"
-    
-    item :: IO ()
-    item = putStrLn "Nuevo Item..."
+    press12f :: IO Bool
+    press12f = do c <- getChar
+                  
+
+    onf :: IO ()
+    onf = do putStrLn "ENCENDIDA"
+             return ()
+
+    offf :: IO ()
+    offf = do putStrLn "APAGADA"

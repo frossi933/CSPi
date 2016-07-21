@@ -4,6 +4,7 @@ module Env where
     import qualified Data.Map as Map
     import Data.String
     import Common
+    import AddTopDecls
     import Imp
 
     import Language.Haskell.TH  (dyn,listE)
@@ -14,7 +15,6 @@ module Env where
     type ActMap = Map.Map String Act
 
 
---    envInsert :: String -> Proc -> Env -> Env
     envInsert = Map.insert
     
     
@@ -27,7 +27,6 @@ module Env where
 
     envGetAct st env = Map.lookup st env
     
---    envEmpty :: Env
     envEmpty = Map.empty
 
     envElems :: PredMap -> [(Pred, BVar)]

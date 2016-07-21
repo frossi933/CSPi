@@ -1,4 +1,3 @@
-{-# LANGUAGE ExistentialQuantification #-}
 module Csp where
 
     import Data.List
@@ -13,7 +12,6 @@ module Csp where
     import Control.Concurrent
     import System.Random
 
-  
 
     chkNames :: [ProcDef] -> IO Bool
     chkNames [] =  return True
@@ -25,33 +23,8 @@ module Csp where
       
     sistema :: ProcEnv -> IO Proc
     sistema e = return $ maybe (maybe Stop id (envGetRef "Sistema" [] e)) id (envGetRef "SISTEMA" [] e)                     
-{-                    
-    alpha :: Proc -> Env -> EvSet
-    alpha p e = snd $ alpha' ["Sistema","SISTEMA"] p e
-    
-    alpha' :: [String] -> Proc -> Env -> ([String], EvSet)
-    alpha' v Skip _ = (v, Set.empty) -- revisar
-    alpha' v Stop _ = (v, Set.empty)
-    alpha' v (Ref s ex) e = if elem s v then (v, Set.empty)
-                                     else case envLookup s e of
-                                            Just p -> alpha' (s:v) p e
-                                            Nothing -> error $ "Referencia a proceso "++s++" inexistente"
-    alpha' v (Prefix ev p) e = let (v', a) = alpha' v p e in (v', Set.insert ev a)
-    alpha' v (Parallel _ l r) e = let (v', al) = alpha' v l e
-                                      (v'', ar) = alpha' v' r e
-                                  in (v'', Set.union al ar)
-    alpha' v (ExtSel p q) e = foldl (\(v',a) p -> let (v'', a') = alpha' v' p e in (v'', Set.union a a')) (v, Set.empty) [p,q]
-    alpha' v (IntSel l r) e = let (v', al) = alpha' v l e
-                                  (v'', ar) = alpha' v' r e
-                              in (v'', Set.union al ar)
-    alpha' v (Seq l r) e = let (v', al) = alpha' v l e
-                               (v'', ar) = alpha' v' r e
-                           in (v'', Set.union al ar)
-    alpha' v (Inter l r) e = let (v', al) = alpha' v l e
-                                 (v'', ar) = alpha' v' r e
-                             in (v'', Set.union al ar)
 
-  -}  
+
     menu :: Proc -> IO EvSet
     menu Stop = return Set.empty
     menu Skip = return Set.empty
@@ -59,7 +32,7 @@ module Csp where
     menu (Prefix v@(E id (Just bvar) _) _) = do 
                                                 b <- takeMVar bvar
                                                 putMVar bvar b
-                                                when debug $ print ("Checking mvar state of "++id++(show b))
+                                                when debug $ print ("Checking mvar state of "++id)
                                                 --threadDelay 1000000
                                                 --putMVar bvar b
                                                 --when debug $ print ("Mvar checked")
@@ -87,61 +60,7 @@ module Csp where
     menu (Ref s e) = return $ Set.singleton Eps
 
 
-    {-
-    chanMerge :: Set.Set Channel -> Set.Set Channel -> Set.Set Channel
-    chanMerge x y = let xy = Set.union x y
-                        (out, rest) = Set.partition (\c -> case c of
-                                                                ComOut _ _ -> True
-                                                                _          -> False) xy
-                        chanMerge' o r = if Set.null o then r
-                                                       else case Set.elemAt 0 o of
-                                                                 ComOut n m -> if Set.member (ComIn n "") r then Set.insert (Com n m) $ chanMerge' (Set.deleteAt 0 o) (Set.delete (ComIn n "") r)
-                                                                                                            else Set.insert (ComOut n m) $ chanMerge' (Set.deleteAt 0 o) r
-                                                                 _          -> error "No deberia ocurrir, error en la combinacion de los canales"
-                    in chanMerge' out rest
-                                                                                                
-                                                                                        
-    getTrueEvents :: Set.Set Event -> Imp -> IO (Set.Set Event)
-    getTrueEvents s i = do --print s
-                           if Set.null s then return Set.empty
-                                         else case Set.elemAt 0 s of
-                                            Out n p -> do b <- execPred p i
-                                                          if b then do s' <- getTrueEvents (Set.deleteAt 0 s) i
-                                                                       return (Set.insert (Out n p) s')
-                                                               else getTrueEvents (Set.deleteAt 0 s) i
-                                            e       -> do s' <- getTrueEvents (Set.deleteAt 0 s) i
-                                                          return (Set.insert e s')
-                                            
 
-    sustProc :: Value -> Id -> Env -> Proc -> Proc
-    sustProc v x e p = fst $ sust' [] v x e p
-
-    
-    sust' vis v x e Skip = (Skip, vis)
-    sust' vis v x e Stop = (Stop, vis)
-    sust' vis v x e (Prefix (C (ComOut n m)) p) = (Prefix (C (ComOut n ("let "++x++"="++v++" in "++m))) p, vis)
-    sust' vis v x e (Prefix ev p) = (Prefix ev p, vis)
-    sust' vis v x e (Ref s ex) = if elem s vis then (Ref s ex, vis)
-                                               else case envLookup s e of
-                                                      Just p -> sust' (s:vis) v x e p
-                                                      Nothing -> error $ "Referencia a proceso "++s++" inexistente."
-    sust' vis v x e (Parallel s l r) = let (l', vis') = sust' vis v x e l
-                                           (r', vis'') = sust' vis' v x e r
-                                       in (Parallel s l' r', vis'')
-    sust' vis v x e (ExtSel p q) = let (ps'@[p',q'], vvis) = foldl (\(p, vis') p' -> let (p'', vis'') = sust' vis' v x e p' in (p'':p, vis'')) ([], vis) [p, q]
-                                  in (ExtSel p' q', vvis)
-    sust' vis v x e (IntSel l r) = let (l', vis') = sust' vis v x e l
-                                       (r', vis'') = sust' vis' v x e r
-                                   in (IntSel l' r', vis'')
-    sust' vis v x e (Seq l r)  = let (l', vis') = sust' vis v x e l
-                                     (r', vis'') = sust' vis' v x e r
-                                 in (Seq l' r', vis'')
-    sust' vis v x e (Inter l r)  = let (l', vis') = sust' vis v x e l
-                                       (r', vis'') = sust' vis' v x e r
-                                   in (Inter l' r', vis'')
-
-    
--}
     smallstep_eval :: ProcEnv -> Proc -> Event -> Maybe Proc
     smallstep_eval _ Stop _ = Nothing
     smallstep_eval _ Skip _ = Nothing
@@ -282,8 +201,8 @@ module Csp where
                                                      --takeMVar mvar
                                                      --threadDelay 1000000
                                                    b' <- takeMVar mvar
-                                                   putMVar mvar b)
-                                                   --when debug $ print ("updated pred "++(show b)))
+                                                   putMVar mvar b
+                                                   when debug $ print ("updated pred "++(show b)))
                                         updatePreds' ps
 
     

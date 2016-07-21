@@ -18,20 +18,14 @@ module Common where
     initial_state_mvar :: Bool
     initial_state_mvar = False
 
-    var :: String
-    var = unsafePerformIO (getLine)
-
------------------ DEBUG FLAG
+---------- DEBUG FLAG----------
     debug :: Bool
+#if DEBUG
+    debug = True
+#else
     debug = False
-
-    predNames :: [(String, String)]
-    predNames = unsafePerformIO (do f <- readFile "pred.aux"
-                                    return $ (map (\l -> let (l1,l2)=span (/=' ') l in (l1,drop 1 l2)) (lines f)))
-
-    actNames :: [(String, String)]
-    actNames = unsafePerformIO (do f <- readFile "act.aux"
-                                   return $ (map (\l -> let (l1,l2)=span (/=' ') l in (l1,drop 1 l2)) (lines f)))
+#endif
+-------------------------------
 
     
     data Event = Eps | E Id (Maybe BVar) (Maybe Act) | C Channel
@@ -72,8 +66,8 @@ module Common where
     instance Ord Event where
         compare v t = compare (nameOfEvent v) (nameOfEvent t)
 
-    instance Show BVar where
-        show v = unsafePerformIO ( do { b <- takeMVar v ; putMVar v b ; return $ show b })
+--    instance Show BVar where
+--        show v = unsafePerformIO ( do { b <- takeMVar v ; putMVar v b ; return $ show b })
               
     data ProcDef = Def String [Exp] Proc 
     data Proc = Skip 
@@ -86,7 +80,6 @@ module Common where
               | Seq Proc Proc
               | Inter Proc Proc
               
-    type Imp = String
 
     instance Show Proc where
         show Skip = "SKIP"

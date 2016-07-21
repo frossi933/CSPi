@@ -26,7 +26,7 @@ module Main where
                                defs <- return $ defInit procs'
                                sys <- sistema defs
                                when debug $ do { printProc sys ; printDefs procs' ; putStrLn "Specification loaded successfully!" }
-                               tid <- forkIO (forever (do { {-threadDelay 1000000 ;-} updatePreds predMap}))
+                               tid <- forkIO (forever (do { threadDelay 100000 ; updatePreds predMap}))
                                res <- eval defs sys
                                killThread tid
                                putStrLn "Execution finished"
