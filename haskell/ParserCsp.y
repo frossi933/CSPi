@@ -28,18 +28,13 @@ import System.IO.Unsafe
     OCCURS      {TOccurs}
     WHEN        {TWhen}
     DOES        {TDoes}
-    CONDBODY    {TCondBody $$}
     '='         {TDef}
-    '?'         {TCVar}
-    '!'         {TCFun}
     '('         {TOpen}
     ')'         {TClose}
     ','         {TComma}
     '->'        {TPrefix}
     '|{'        {TParOpen}
     '}|'        {TParClose}
-    '|-'        {TCondOpen}
-    '-|'        {TCondClose}
     '[]'        {TExtSel}
     '/|'        {TIntSel}
     ';'         {TSeq}
@@ -49,7 +44,6 @@ import System.IO.Unsafe
 %left '[]' '/|' '|>' ';' 
 %left '|{' '}|'
 %right '->'
-%nonassoc '|-' '-|'
 %%
 
 Stmt : Defs                                     { ($1, []) }
@@ -80,12 +74,8 @@ Proc    : STOP                                  { Stop }
         | Proc '/|' Proc                        { IntSel $1 $3 }
         | Proc ';' Proc                         { Seq $1 $3 }
         | Proc '|>' Proc                        { Inter $1 $3 }
-        | Proc '|-' Cond '-|' Proc              { Cond 0 $3 [] $1 $5 }
-
        
 Event   : EventName                             { E $1 Nothing Nothing }
-        | EventName '?' VNAME                   { C (Var $1 $3) }
-        | EventName '!' EXP                     { C (Fun $1 $3 (return "")) }
 
 EvSet   :                                       { Set.empty }
         | Event                                 { Set.singleton $1 }
@@ -96,7 +86,6 @@ EventName : ENAME                               { $1 }
 RefProc : PNAME                                 { Ref $1 [] }
         | PNAME '(' Args ')'                    { Ref $1 $3 }
 
-Cond : CONDBODY                                 { $1 }
 
 {
 parseError :: [Token] -> a
@@ -114,22 +103,15 @@ data Token =  TSkip
             | TExp String
             | TPred String
             | TAct String
-            | TCondBody String
             | TEvent
             | TFrom
             | TOccurs
             | TWhen
             | TDoes
             | TDef
-            | TCIn
-            | TCOut
-            | TCVar
-            | TCFun
             | TPrefix
             | TParOpen
             | TParClose
-            | TCondOpen
-            | TCondClose
             | TExtSel
             | TIntSel
             | TSeq
@@ -143,7 +125,6 @@ lexer ('{':('-':cs)) = lexCom cs
 lexer ('(':cs)       = TOpen : (lexer cs)
 lexer (')':cs)       = TClose : (lexer cs)
 lexer ('-':('>':cs)) = TPrefix : (lexer cs)
-lexer ('|':('-':cs)) = TCondOpen : (lexCond cs)
 lexer ('|':('>':cs)) = TInter : (lexer cs)
 lexer ('|':('{':cs)) = TParOpen : (lexPar cs)
 lexer ('[':(']':cs)) = TExtSel : (lexer cs)
@@ -166,8 +147,6 @@ lexWord (c:cs)  | isUpper c = case fstWord (c:cs) of
                                 ("occurs", cont)  -> TOccurs : lexer cont
                                 ("when", cont)    -> let (p, contt) = fstWord (dropWhile isSpace cont) in (TWhen : ((TPred p) : lexer contt))
                                 ("does", cont)    -> let (a, contt) = fstWord (dropWhile isSpace cont) in (TDoes : ((TAct a) : lexer contt))
-                                (e, ('?' : cont)) -> let (v, contt) = fstWord cont in [TEName e, TCVar, TVName v]++ (lexer contt)
-                                (e, ('!' : cont)) -> let (f, contt) = fstWord cont in [TEName e, TCFun, TFName f]++ (lexer contt)
                                 (e, cont)         -> (TEName e) : lexer cont
                 
 fstWord = span (\c -> isAlpha c || c == '_' || isDigit c)
@@ -186,14 +165,4 @@ lexPar cs       = case span (\c -> c /= ',' && c /= '}') cs of
                       (w,(',':cs')) -> ((TEName (rmvSpc w)) : (TComma : (lexPar cs')))
                       _ -> [] -- error
 
-lexCond cs = case lexBody cs of
-                ([],cs') -> [] -- error
-                (b, ('-':('|':cs'))) -> ((TCondBody b) : (TCondClose : (lexer cs')))
-                _ -> [] -- error
-
-lexBody cs = case span (/= '-') cs of
-                (w,('-':('|':cs'))) -> (w, ('-':('|':cs')))
-                (w,('-':cs')) -> let (w',cs'')=lexBody cs'
-                                 in (w ++ "-" ++ w', cs'')
-                _ -> ([],[])
 }

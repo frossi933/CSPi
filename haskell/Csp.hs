@@ -57,7 +57,6 @@ module Csp where
                                mq <- menu q
                                return (Set.union (Set.intersection (Set.intersection mp mq) s)
                                                  (Set.union (Set.difference mp s) (Set.difference mq s)))
-    menu (Cond id body _ p q) = return $ Set.singleton Eps
     menu (Ref s e) = return $ Set.singleton Eps
 
 
@@ -107,9 +106,6 @@ module Csp where
                                         Nothing -> case smallstep_eval e p v of
                                                     Just p1 -> Just (Inter p1 q)
                                                     Nothing -> Nothing -- ??
-    smallstep_eval e (Cond id body vars p q) Eps = if True then Just p      -- aca evaluamos el body
-                                                           else Just q
-    smallstep_eval _ (Cond _ _ _ _ _) _ = Nothing
 
     choose :: EvSet -> IO Event
     choose s = do when debug $ putStrLn (show s)
@@ -159,46 +155,17 @@ module Csp where
     setCondVars :: [ProcDef] -> [ProcDef]
     setCondVars defs = map (\(Def name exp proc) -> Def name exp (setCondVarsProc proc [])) defs
     
-    setCondVars :: Proc -> [Var] -> Proc
-    setCondVars Skip _ = Skip
-    setCondVars Stop _ = Stop
-    setCondVars (Ref name exp) _ = Ref name exp
-    setCondVars (Prefix e@(C (Var id v)) p) vars = Prefix e (setCondVars p (v:vars))
-    setCondVars (Prefix e p) vars = Prefix e (setCondVars p vars)
-    setCondVars (Parallel s p q) vars = Parallel s (setCondVars p vars) (setCondVars q vars)
-    setCondVars (ExtSel p q) vars = ExtSel (setCondVars p vars) (setCondVars q vars)
-    setCondVars (IntSel p q) vars = IntSel (setCondVars p vars) (setCondVars q vars)
-    setCondVars (Seq p q) vars = Seq (setCondVars p vars) (setCondVars q vars)
-    setCondVars (Inter p q) vars = Inter (setCondVars p vars) (setCondVars q vars)
-    setCondVars (Cond id body _ p q) vars = let body' = sustVars body vars
-                                            in Cond id body' vars (setCondVars p vars) (setCondVars q vars)
-
-    sustVars :: String -> [Var] -> String
-    sustVars str vars = let ws = words str
-                            replace p q [] = []
-                            replace p q (l:ls) = if l == p then p:(replace p q ls)
-                                                           else l:(replace p q ls)
-                        in map (\(v,i) -> replace v ("(args!!"++(show i)++")") ws) (zip vars (iterate (+1) 0)) -- depende de donde arranca args...
-
-
-
-    setCondFuns :: [ProcDef] -> FunMap -> [ProcDef]
-    setCondFuns defs funs = map (\(Def name exp proc) -> Def name exp (setCondFunsProc proc funs)) defs
-
-    setCondFunsProc :: Proc -> FunMap -> Proc
-    setCondFunsProc Skip _ = Skip
-    setCondFunsProc Stop _ = Stop
-    setCondFunsProc (Ref name exp) _ = Ref name exp
-    setCondFunsProc (Prefix e@(C (Fun id body _) p) funs = case envGetFun id funs of
-                                        Just f -> Prefix (C (Fun id body f)) (setCondFunsProc p funs)
-                                        Nothing -> error "no hay fun para un channel"
-    setCondFunsProc (Prefix e p) funs = Prefix e (setCondFunsProc p funs)
-    setCondFunsProc (Parallel s l r) funs = Parallel s (setCondFunsProc l funs) (setCondFunsProc r funs)
-    setCondFunsProc (ExtSel p q) funs = ExtSel (setCondFunsProc p funs) (setCondFunsProc q funs)
-    setCondFunsProc (IntSel p q) funs = IntSel (setCondFunsProc p funs) (setCondFunsProc q funs)
-    setCondFunsProc (Seq l r) funs = Seq (setCondFunsProc l funs) (setCondFunsProc r funs)
-    setCondFunsProc (Inter l r) funs = Inter (setCondFunsProc l funs) (setCondFunsProc r funs)
-    setCondFunsProc (Cond id body vars p q) funs = Cond id body vars (setCondFunsProc p funs) (setCondFunsProc q funs)
+    setCondVarsProc :: Proc -> [Var] -> Proc
+    setCondVarsProc Skip _ = Skip
+    setCondVarsProc Stop _ = Stop
+    setCondVarsProc (Ref name exp) _ = Ref name exp
+    setCondVarsProc (Prefix e@(C (Var id v)) p) vars = Prefix e (setCondVarsProc p (v:vars))
+    setCondVarsProc (Prefix e p) vars = Prefix e (setCondVarsProc p vars)
+    setCondVarsProc (Parallel s p q) vars = Parallel s (setCondVarsProc p vars) (setCondVarsProc q vars)
+    setCondVarsProc (ExtSel p q) vars = ExtSel (setCondVarsProc p vars) (setCondVarsProc q vars)
+    setCondVarsProc (IntSel p q) vars = IntSel (setCondVarsProc p vars) (setCondVarsProc q vars)
+    setCondVarsProc (Seq p q) vars = Seq (setCondVarsProc p vars) (setCondVarsProc q vars)
+    setCondVarsProc (Inter p q) vars = Inter (setCondVarsProc p vars) (setCondVarsProc q vars)
 
 
     setActAndVars :: [ProcDef] -> [Claus] -> ActMap -> PredMap -> [ProcDef]
@@ -222,7 +189,6 @@ module Csp where
     setVarProc id pr (IntSel l r) = IntSel (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (Seq l r) = Seq (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (Inter l r) = Inter (setVarProc id pr l) (setVarProc id pr r)
-    setVarProc id pr (Cond id' body vars p q) = Cond id' body vars (setVarProc id pr p) (setVarProc id pr q)
 
     setActProc :: String -> ActMap -> Proc -> Proc
     setActProc _ _ Skip = Skip
@@ -240,8 +206,6 @@ module Csp where
     setActProc id a (IntSel l r) = IntSel (setActProc id a l) (setActProc id a r)
     setActProc id a (Seq l r) = Seq (setActProc id a l) (setActProc id a r)
     setActProc id a (Inter l r) = Inter (setActProc id a l) (setActProc id a r)    
-    setActProc id a (Cond id' body vars p q) = Cond id' body vars (setActProc id a p) (setActProc id a q)
-
 
                           
     updatePreds :: PredMap -> IO ()
@@ -264,9 +228,7 @@ module Csp where
     
 
     printEvent (E id v a) = "_event_("++id++")"                  ------
-    printEvent (C (ComOut n m)) = "_chan_ "++n++"!"++m++" "
-    printEvent (C (ComIn n m)) = "_chan_ "++n++"?"++m++" "
-    printEvent (C (Com n m)) = "_chan_ "++n++"."++m++" "
+    printEvent (C c) = "chan"
     
 
     printProc :: Proc -> IO ()

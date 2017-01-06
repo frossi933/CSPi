@@ -54,8 +54,8 @@ module Env where
                                             putMVar mvar initial_state_mvar
                                             predInit' fs (envInsert event (pred, mvar) env)
 
-    funsInit :: IO FunMap
+{-    funsInit :: IO FunMap
     funsInit = do let funsList' = $(listE (map (dyn . snd) funNames))
                   let funList = zip (map fst funNames) funList'
                   return $ Map.fromList funList
-
+-}
