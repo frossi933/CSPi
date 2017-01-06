@@ -10,7 +10,10 @@ module Common where
 
     type Pred = IO Bool
     type Act = IO ()
+    type Func = IO Value
     type Id = String
+    type IdCond = Int
+    type Var = String
     type Value = String
     type Exp = String
     type BVar = MVar Bool
@@ -27,15 +30,27 @@ module Common where
 #endif
 -------------------------------
 
-    
+    type EvSet = Set.Set Event
     data Event = Eps | E Id (Maybe BVar) (Maybe Act) | C Channel
-    data Channel = ComOut Id Value | ComIn Id Id | Com Id Value  deriving(Show) -- ComIn idEvento idVariable, Com es el resultado de la sincronizacion de dos canales...
+    data Channel = Fun Id String Func | Var Id String | Com Id Value -- Com es el resultado de la sincronizacion de dos canales...
 
     data Claus = CPred String String String         -- CPred evento proceso predicado
                | CAct String String String          -- CAcc evento proceso accion
 
-    type EvSet = Set.Set Event
-    
+    data ProcDef = Def String [Exp] Proc 
+    data Proc = Skip 
+              | Stop 
+              | Ref String [Exp]
+              | Prefix Event Proc 
+              | Parallel EvSet Proc Proc 
+              | ExtSel Proc Proc
+              | IntSel Proc Proc
+              | Seq Proc Proc
+              | Inter Proc Proc
+              | Cond IdCond String [Var] Proc Proc
+
+
+
     instance Eq Event where
         (==) (Eps) (Eps)          = True
         (==) (E id _ _) (E id' _ _) = id == id'
@@ -44,14 +59,14 @@ module Common where
 
 
     instance Ord Channel where
-        compare (ComOut n _) (ComOut n' _) = compare n n'
-        compare (ComIn n _) (ComIn n' _)   = compare n n'
+        compare (Fun n _ _) (Fun n' _ _) = compare n n'
+        compare (Var n _) (Var n' _)   = compare n n'
         compare (Com n _) (Com n' _)       = compare n n'
         compare c c'                       = LT
         
     instance Eq Channel where
-        (==) (ComOut n _) (ComOut n' _) = n == n'
-        (==) (ComIn n _) (ComIn n' _)   = n == n'
+        (==) (Fun n _ _) (Fun n' _ _) = n == n'
+        (==) (Var n _) (Var n' _)   = n == n'
         (==) (Com n _) (Com n' _)       = n == n'
         (==) c c'                       = False
         
@@ -63,23 +78,16 @@ module Common where
         show (E id _ _) = show id
         show (C c)     = show c
  
+    instance Show Channel where
+        show (Fun id f _) = id++"!"++f
+        show (Var id v) = id++"?"++v
+        show (Com id _) = "COM:"++id
+
     instance Ord Event where
         compare v t = compare (nameOfEvent v) (nameOfEvent t)
 
 --    instance Show BVar where
---        show v = unsafePerformIO ( do { b <- takeMVar v ; putMVar v b ; return $ show b })
-              
-    data ProcDef = Def String [Exp] Proc 
-    data Proc = Skip 
-              | Stop 
-              | Ref String [Exp]
-              | Prefix Event Proc 
-              | Parallel EvSet Proc Proc 
-              | ExtSel Proc Proc
-              | IntSel Proc Proc
-              | Seq Proc Proc
-              | Inter Proc Proc
-              
+--        show v = unsafePerformIO ( do { b <- takeMVar v ; putMVar v b ; return $ show b })              
 
     instance Show Proc where
         show Skip = "SKIP"
@@ -91,12 +99,13 @@ module Common where
         show (IntSel p q) = (show p) ++ " /] " ++ (show q)
         show (Seq p q) = (show p) ++ " ; " ++ (show q)
         show (Inter p q) = (show p) ++ " |> " ++ (show q)
+        show (Cond id body _ p q) = (show p) ++ " |- " ++ (show id) ++ "," ++ body ++ " -| " ++ (show q)
 
     nameOfEvent (E e _ _) = e
     nameOfEvent (C c)     = nameOfCom c
     nameOfEvent Eps       = "eps"
 
-    nameOfCom (ComIn s _)  = s
-    nameOfCom (ComOut s _) = s
+    nameOfCom (Fun s _ _)  = s
+    nameOfCom (Var s _) = s
     nameOfCom (Com s _)    = s
 

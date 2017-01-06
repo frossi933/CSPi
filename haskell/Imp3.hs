@@ -10,7 +10,7 @@ module Imp where
                 return (c == 'p')
 
     press12f :: IO Bool
-    press12f = do c <- getChar
+    press12f = c <- getChar
                   
 
     onf :: IO ()

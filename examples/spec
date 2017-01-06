@@ -8,5 +8,5 @@ SISTEMA = ( DK_BOTON |{ }| DK_LAMPARA ) |{ on , off , press }| LAMP
 
 
 event on from DK_LAMPARA does onf
-event press from DK_BOTON occurs when pressf
+event press from DK_BOTON occurs when pressf2
 event off from DK_LAMPARA does offf

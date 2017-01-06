@@ -13,6 +13,7 @@ module Env where
     type ProcEnv = Map.Map String Proc
     type PredMap = Map.Map String (Pred, BVar)
     type ActMap = Map.Map String Act
+    type FunMap = Map.Map String Func
 
 
     envInsert = Map.insert
@@ -26,6 +27,8 @@ module Env where
     envGetVar st env = maybe Nothing (Just . snd) (Map.lookup st env)
 
     envGetAct st env = Map.lookup st env
+
+    envGetFun st env = Map.lookup st env
     
     envEmpty = Map.empty
 
@@ -50,3 +53,9 @@ module Env where
     predInit' ((event, pred) : fs) env = do mvar <- newEmptyMVar
                                             putMVar mvar initial_state_mvar
                                             predInit' fs (envInsert event (pred, mvar) env)
+
+    funsInit :: IO FunMap
+    funsInit = do let funsList' = $(listE (map (dyn . snd) funNames))
+                  let funList = zip (map fst funNames) funList'
+                  return $ Map.fromList funList
+
