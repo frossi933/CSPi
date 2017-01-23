@@ -49,7 +49,8 @@ while $NO_EXIT ; do
                 then
                     if $COMPILED
                     then
-                        xterm -e ./csp $spec $imp
+                        #xterm -e ./csp $spec $imp
+			./csp $spec $imp
                         rm *.dyn*
                         rm *.o
                         rm *.hi

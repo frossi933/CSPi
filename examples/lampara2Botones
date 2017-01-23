@@ -1,0 +1,19 @@
+DK_BOTON1 = press1 -> DK_BOTON1
+
+DK_BOTON2 = press2 -> DK_BOTON2
+
+DK_LAMPARA = on -> off -> DK_LAMPARA
+
+LAMP = readChar -> (press1 -> on -> LAMP1 [] press2 -> on -> LAMP2)
+LAMP1 = readChar -> press1 -> off -> LAMP 
+LAMP2 = readChar -> press2 -> off -> LAMP
+
+DKS = ( DK_BOTON1 |{ }| DK_BOTON2 ) |{ }| DK_LAMPARA
+
+SISTEMA = DKS |{ press1,press2,on,off }| LAMP
+
+
+event press1 from DK_BOTON1 occurs when press1_pred
+event press2 from DK_BOTON2 occurs when press2_pred
+event on from DK_LAMPARA does on_action
+event off from DK_LAMPARA does off_action
