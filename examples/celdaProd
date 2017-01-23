@@ -1,0 +1,50 @@
+DKCELL = DKARM || DKBELT || DKSWITCH || DKPRESS
+
+
+DKPRESS = start -> PRESS1 |> finish -> DKPRESS
+
+PRESS1 = free -> press -> stoppress -> remove -> PRESS1
+
+
+DKSWITCH = start -> finish -> DKSWITCH
+
+
+DKBELT = start -> BELT1 |> finish -> DKBELT
+
+BELT1 = item -> BELT1
+
+
+DKARM = start -> ARM1 |> finish -> DKARM
+
+ARM1 = ARM11 || ARM12
+
+ARM11 = take -> release -> ARM11
+
+ARM12 = topress -> tobelt -> ARM12
+
+
+SCELL = start -> WORK |> finish -> SCELL
+
+WORK = W || PRESSING
+
+W = item -> take -> topress -> free -> release -> startpress -> tobelt -> W
+
+PRESSING = startpress -> press -> stoppress -> remove -> PRESSING
+
+
+SISTEMA = DKS || SCELL
+
+
+
+event finish from DKSWITCH occurs when switch_off
+event start from DKSWITCH occurs when switch_on
+event item from BELT1 occurs when new_item
+
+event press from PRESS1 does press_action
+event remove from PRESS1 does remove_action
+event stoppress from PRESSING occurs when item_finished
+
+event take from ARM11 does take_action
+event release from ARM11 does release_action
+event topress from ARM12 does topress_action
+event tobelt from ARM12 does tobelt_action
