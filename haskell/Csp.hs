@@ -4,8 +4,8 @@ module Csp where
     import Data.Char
     import Env
 
-    import qualified EventSet as Set    
-    
+    import qualified EventSet as Set
+
     import Common
     import ParserCsp
     import Control.Monad
@@ -19,17 +19,17 @@ module Csp where
                                             Just (Def n _ _) -> do putStrLn ("Error: multiples definiciones de "++n++".")
                                                                    return False
                                             Nothing          -> chkNames ds
-    
-      
+
+
     sistema :: ProcEnv -> IO Proc
-    sistema e = return $ maybe (maybe Stop id (envGetRef "Sistema" [] e)) id (envGetRef "SISTEMA" [] e)                     
+    sistema e = return $ maybe (maybe Stop id (envGetRef "Sistema" [] e)) id (envGetRef "SISTEMA" [] e)
 
 
     menu :: Proc -> IO EvSet
     menu Stop = return Set.empty
     menu Skip = return Set.empty
     menu (Prefix v@(E _ Nothing _) _) = return $ Set.singleton v
-    menu (Prefix v@(E id (Just bvar) _) _) = do 
+    menu (Prefix v@(E id (Just bvar) _) _) = do
                                                 b <- takeMVar bvar
                                                 putMVar bvar b
                                                 when debug $ print ("Checking mvar state of "++id)
@@ -91,7 +91,7 @@ module Csp where
                                                 (Just p1, Nothing) -> Just (Parallel s p1 q)
                                                 (Nothing, Just q1) -> Just (Parallel s p q1)
                                                 (Just p1, Just q1) -> Just (Parallel s p1 q) -- TODO: random selection
-                                                _                  -> Nothing 
+                                                _                  -> Nothing
     smallstep_eval e (Parallel s p q) v = if Set.member v s then case (smallstep_eval e p v, smallstep_eval e q v) of
                                                                     (Just p1, Just q1) -> Just (Parallel s p1 q1)
                                                                     _                  -> Nothing
@@ -119,7 +119,7 @@ module Csp where
     eval e Skip = do putStrLn "END: Success"
                      return Skip
     eval e p = do m <- menu p
-                  if Set.null m then eval e p                   -- waits for available events 
+                  if Set.null m then eval e p                   -- waits for available events
                                 else do v <- choose m
                                         when debug $ putStrLn ("Menu: "++ show m ++ " Evento: " ++ show v ++ " -- Proceso: " ++ show p)
                                         case v of
@@ -146,15 +146,15 @@ module Csp where
                                             _ -> case smallstep_eval e p v of
                                                     Nothing -> do putStrLn "END: Internal error"
                                                                   return Stop
-                                                    Just p1 -> eval e p1    
+                                                    Just p1 -> eval e p1
 
-    
+
 
 
 
     setCondVars :: [ProcDef] -> [ProcDef]
     setCondVars defs = map (\(Def name exp proc) -> Def name exp (setCondVarsProc proc [])) defs
-    
+
     setCondVarsProc :: Proc -> [Var] -> Proc
     setCondVarsProc Skip _ = Skip
     setCondVarsProc Stop _ = Stop
@@ -172,7 +172,8 @@ module Csp where
     setActAndVars defs [] _ _ = defs
     setActAndVars defs ((CPred id _ pred):cs) acts vars = setActAndVars (map (\(Def name exp proc) -> Def name exp (setVarProc id vars proc)) defs) cs acts vars
     setActAndVars defs ((CAct id _ _):cs) acts vars = setActAndVars (map (\(Def name exp proc) -> Def name exp (setActProc id acts proc)) defs) cs acts vars
-    
+
+    -- recorro todo un proceso seteando las predicados (en Nothing) con la mvar correspondiente
     setVarProc :: String -> PredMap -> Proc -> Proc
     setVarProc _ _ Skip = Skip
     setVarProc _ _ Stop = Stop
@@ -185,7 +186,7 @@ module Csp where
                                                                          else Prefix e (setVarProc id vars p)
     setVarProc id vars (Prefix e p) = Prefix e (setVarProc id vars p)
     setVarProc id pr (Parallel s l r) = Parallel s (setVarProc id pr l) (setVarProc id pr r)
-    setVarProc id pr (ExtSel p q) = ExtSel (setVarProc id pr p) (setVarProc id pr q) 
+    setVarProc id pr (ExtSel p q) = ExtSel (setVarProc id pr p) (setVarProc id pr q)
     setVarProc id pr (IntSel l r) = IntSel (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (Seq l r) = Seq (setVarProc id pr l) (setVarProc id pr r)
     setVarProc id pr (Inter l r) = Inter (setVarProc id pr l) (setVarProc id pr r)
@@ -205,9 +206,9 @@ module Csp where
     setActProc id a (ExtSel p q) = ExtSel (setActProc id a p) (setActProc id a q)
     setActProc id a (IntSel l r) = IntSel (setActProc id a l) (setActProc id a r)
     setActProc id a (Seq l r) = Seq (setActProc id a l) (setActProc id a r)
-    setActProc id a (Inter l r) = Inter (setActProc id a l) (setActProc id a r)    
+    setActProc id a (Inter l r) = Inter (setActProc id a l) (setActProc id a r)
 
-                          
+
     updatePreds :: PredMap -> IO ()
     updatePreds preds = updatePreds' (envElems preds)
 
@@ -221,22 +222,22 @@ module Csp where
                                                    when debug $ print ("updated pred "++(show b)))
                                         updatePreds' ps
 
-    
+
 ----------------------------
 --- Print
 ----------------------------
-    
+
 
     printEvent (E id v a) = "_event_("++id++")"                  ------
     printEvent (C c) = "chan"
-    
+
 
     printProc :: Proc -> IO ()
     printProc p = putStrLn $ show p
-    
+
     strDefs :: [ProcDef] -> [String]
     strDefs ds = map strdef ds
         where strdef (Def name exp p) = name ++ " = " ++ (show p)
-    
+
     printDefs :: [ProcDef] -> IO ()
     printDefs ds = mapM_ putStrLn (strDefs ds)
