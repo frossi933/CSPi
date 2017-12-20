@@ -1,16 +1,19 @@
 module Imp where
 
-    pressf :: IO Bool
-    pressf = return True
+    press_pred :: IO Bool
+    press_pred = do c <- getChar
+                    return (c == 'p')
 
-    pressf2 :: IO Bool
-    pressf2 = do print "waiting char..."
-                 c <- getChar
-                 if c == 'p' then return True else return False
+    press1_pred :: IO Bool
+    press1_pred = do c <- getChar
+                     return (c == '1')
 
-    onf :: IO ()
-    onf = do putStrLn "ENCENDIDA"
-             return ()
+    press2_pred :: IO Bool
+    press2_pred = do c <- getChar
+                     return (c == '2')
 
-    offf :: IO ()
-    offf = do putStrLn "APAGADA"
+    on_action :: IO ()
+    on_action = putStrLn "ENCENDIDA"
+
+    off_action :: IO ()
+    off_action = putStrLn "APAGADA"

@@ -7,6 +7,6 @@ LAMP = press -> on -> press -> off -> LAMP
 SISTEMA = ( DK_BOTON |{ }| DK_LAMPARA ) |{ on , off , press }| LAMP
 
 
-event on from DK_LAMPARA does onf
-event press from DK_BOTON occurs when pressf2
-event off from DK_LAMPARA does offf
+event on from DK_LAMPARA does on_action
+event press from DK_BOTON occurs when press_pred
+event off from DK_LAMPARA does off_action

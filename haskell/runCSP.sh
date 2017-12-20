@@ -19,13 +19,15 @@ while $NO_EXIT ; do
     read input
     cmd=`echo $input | awk -F ' ' '{print $1}'`
     case $cmd in
+        "clean")
+	          rm *.o *.hi *.dyn* ;;
         "loadSpec")
             spec=`echo $input | awk -F ' ' '{print $2}'` ;;
         "loadImp")
             imp=`echo $input | awk -F ' ' '{print $2}'` ;;
         "compile")
             if [ "$spec" != ""  ]
-            then 
+            then
                 if [ "$imp" != "" ]
                 then
                     flag=`echo $input | awk -F ' ' '{print $2}'`
@@ -43,24 +45,12 @@ while $NO_EXIT ; do
                 echo "Especificacion no cargada."
             fi ;;
         "run")
-            if [ "$spec" != "" ]
-            then 
-                if [ "$imp" != "" ]
-                then
-                    if $COMPILED
-                    then
-                        xterm -e ./csp $spec $imp
-                        rm *.dyn*
-                        rm *.o
-                        rm *.hi
-                    else
-                        echo "Programa no compilado todavia."
-                    fi
-                else
-                    echo "Implementacion no cargada."
-                fi
+            if $COMPILED
+            then
+                #xterm -e ./csp $spec $imp
+			          ./csp $spec $imp
             else
-                echo "Especificacion no cargada."
+                echo "Programa no compilado."
             fi ;;
         "help")
             for i in `seq 0 5`; do

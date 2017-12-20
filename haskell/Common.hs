@@ -12,7 +12,6 @@ module Common where
     type Act = IO ()
     type Func = IO Value
     type Id = String
-    type IdCond = Int
     type Var = String
     type Value = String
     type Exp = String
@@ -47,7 +46,6 @@ module Common where
               | IntSel Proc Proc
               | Seq Proc Proc
               | Inter Proc Proc
-              | Cond IdCond String [Var] Proc Proc
 
 
 
@@ -99,7 +97,6 @@ module Common where
         show (IntSel p q) = (show p) ++ " /] " ++ (show q)
         show (Seq p q) = (show p) ++ " ; " ++ (show q)
         show (Inter p q) = (show p) ++ " |> " ++ (show q)
-        show (Cond id body _ p q) = (show p) ++ " |- " ++ (show id) ++ "," ++ body ++ " -| " ++ (show q)
 
     nameOfEvent (E e _ _) = e
     nameOfEvent (C c)     = nameOfCom c
