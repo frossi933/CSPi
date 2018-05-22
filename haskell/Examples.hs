@@ -33,6 +33,10 @@ module Examples where
     dk_boton :: Proc
     dk_boton = press --> (Ref dk_boton)
 
+    dk_boton_n :: Int -> Proc
+    dk_boton_n n = if n > 0 then (press --> (Ref (dk_boton_n (n-1))))
+                            else (Ref dk_boton)
+
     lamp :: Proc
     lamp = press --> ( on --> ( press --> ( off --> (Ref lamp) )))
 
@@ -41,3 +45,22 @@ module Examples where
 
     sistema :: Proc
     sistema = lamp ||| dks
+
+
+    e = newEvent "e"
+    f = newEvent "f"
+    broken :: Proc
+    broken = (e -->  ( f --> Skip ) ) ||| (f --> ( e --> Skip ) )
+
+    tick = newEvent "tick"
+    timeout = newEvent "timeout"
+
+    dkrt :: Proc
+    dkrt = tick --> (Ref dkrt)
+
+    timer' :: Proc
+    timer' = Skip --(start?n --> (if n > 0 then (timer n) else timer' )) >< (tick --> timer')
+
+    timer :: Int -> Proc
+    timer 0 = timeout --> timer'
+    timer n = tick --> (timer (n-1))

@@ -11,8 +11,6 @@ module Main where
 
 -- Installation
 -- 	 cabal install monadrandom
---   cabal install hint
---   ghc-pkg expose ghc
 
     main :: IO ()
     main = do args <- getArgs
@@ -35,6 +33,6 @@ module Main where
 
 
     parseSpec :: String -> IO ([ProcDef],[Claus])
-    parseSpec file = do let f'= reverse(dropWhile isSpace (reverse file)) 
+    parseSpec file = do let f'= reverse(dropWhile isSpace (reverse file))
                         f <- readFile f'
                         (cspparser . lexer) f

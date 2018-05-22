@@ -34,15 +34,15 @@ module Common where
               | Seq Proc Proc
               | Inter Proc Proc
 
+    newEvent :: String -> Event
+    newEvent name = E name Nothing Nothing
+
     newAction :: String -> Action -> Event
     newAction name func = E name Nothing (Just func)
 
     newCondition :: String -> Cond -> Event
     newCondition name cond = E name (Just cond) Nothing
 
-
---    && :: Proc -> Proc
---    && = Ref
 
     infixl 5 -->
     (-->) :: Event -> Proc -> Proc
