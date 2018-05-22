@@ -48,3 +48,7 @@ module EventSet where
 
     difference :: EvSet -> EvSet -> EvSet
     difference = (List.\\)
+
+    subset :: EvSet -> EvSet -> Bool
+    subset [] q = True
+    subset (x:xs) q = List.elem x q && subset xs q

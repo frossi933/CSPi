@@ -149,3 +149,20 @@ module Csp where
                                                     Nothing -> do putStrLn "END: Internal error"
                                                                   return Stop
                                                     Just p1 -> eval p1
+
+    deadlock :: Proc -> Bool
+    deadlock Skip = False
+    deadlock Stop = False -- FIXME
+    deadlock (Ref p) = False -- FIXME
+    deadlock (Prefix e p) = deadlock p
+    deadlock (ExtSel p q) = deadlock p || deadlock q
+    deadlock (IntSel p q) = deadlock p || deadlock q
+    deadlock (Seq p q) = deadlock p || deadlock q
+    deadlock (Parallel p q) = (not (EvSet.isEmpty (menu p))
+                               && not (EvSet.isEmpty (menu q))
+                               && EvSet.isEmpty (EvSet.intersection (menu p) (menu q))
+                               && EvSet.subset (menu p) (alphabet q)
+                               && EvSet.subset (menu q) (alphabet p))
+                              || deadlock p
+                              || deadlock q
+    deadlock (Inter p q) = deadlock p || deadlock q  -- FIXME
